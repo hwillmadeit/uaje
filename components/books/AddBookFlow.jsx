@@ -6,6 +6,7 @@ import { Serif, BackHeader } from "@/components/layout/Primitives";
 import { useLibrary } from "@/lib/LibraryContext";
 import { bookAdapters } from "@/lib/bookAdapters";
 import { resolveDetections } from "@/lib/resolveDetections";
+import { cropImageToBox } from "@/lib/cropImage";
 import { STATUS_META } from "@/lib/constants";
 
 function FlowHeader({ title, onClose }) {
@@ -176,12 +177,19 @@ export default function AddBookFlow({ onClose }) {
   const [searchResults, setSearchResults] = useState([]);
   const [manualTitle, setManualTitle] = useState("");
   const [manualAuthor, setManualAuthor] = useState("");
+  const [manualCoverBlob, setManualCoverBlob] = useState(null);
+  const [manualCoverPreviewUrl, setManualCoverPreviewUrl] = useState(null);
+  const [manualCoverBusy, setManualCoverBusy] = useState(false);
+  const [manualCoverMsg, setManualCoverMsg] = useState("");
+  const [manualDrafts, setManualDrafts] = useState([]); // [{ id, title, author, coverBlob, coverPreviewUrl }]
+  const manualDraftSeq = useRef(0);
   const [summary, setSummary] = useState(null);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [notConfiguredMsg, setNotConfiguredMsg] = useState("");
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
+  const manualCoverInputRef = useRef(null);
 
   function handlePhotoSelected(file) {
     if (!file) return;
@@ -293,13 +301,100 @@ export default function AddBookFlow({ onClose }) {
     setBusy(false);
   }
 
-  async function submitManual() {
+  async function handleManualCoverSelected(file) {
+    if (!file) return;
+    setManualCoverMsg("");
+    setErrorMsg("");
+    setManualCoverBusy(true);
+    try {
+      const result = await bookAdapters.identifyCover(file);
+      if (result.notConfigured) {
+        setManualCoverMsg(result.message);
+        setManualCoverBusy(false);
+        return;
+      }
+      const box = result.box || { xMin: 0, yMin: 0, xMax: 1, yMax: 1 };
+      const croppedBlob = await cropImageToBox(file, box);
+      if (manualCoverPreviewUrl) URL.revokeObjectURL(manualCoverPreviewUrl);
+      setManualCoverBlob(croppedBlob);
+      setManualCoverPreviewUrl(URL.createObjectURL(croppedBlob));
+      if (result.title) setManualTitle(result.title);
+      if (result.author) setManualAuthor(result.author);
+      if (!result.title) {
+        setManualCoverMsg("표지는 잘라냈지만 제목은 읽지 못했어요. 직접 입력해주세요.");
+      }
+    } catch (e) {
+      setManualCoverMsg("표지를 읽는 중 문제가 생겼어요. 사진을 다시 선택해볼까요?");
+    }
+    setManualCoverBusy(false);
+  }
+
+  function clearManualCover() {
+    if (manualCoverPreviewUrl) URL.revokeObjectURL(manualCoverPreviewUrl);
+    setManualCoverBlob(null);
+    setManualCoverPreviewUrl(null);
+    setManualCoverMsg("");
+  }
+
+  function resetManualForm() {
+    setManualTitle("");
+    setManualAuthor("");
+    setManualCoverBlob(null);
+    setManualCoverPreviewUrl(null);
+    setManualCoverMsg("");
+  }
+
+  // Pushes the book currently in the form into the draft list, then clears
+  // the form so the next book can be entered — this is what makes "직접
+  // 입력" work for several books in one session instead of just one.
+  function addCurrentToManualDrafts() {
     if (!manualTitle.trim()) return;
+    manualDraftSeq.current += 1;
+    setManualDrafts((prev) => [
+      ...prev,
+      {
+        id: manualDraftSeq.current,
+        title: manualTitle.trim(),
+        author: manualAuthor.trim() || null,
+        coverBlob: manualCoverBlob,
+        coverPreviewUrl: manualCoverPreviewUrl,
+      },
+    ]);
+    // Ownership of the object URL moves to the draft list — don't revoke it
+    // here, just clear the form's own pointer to it.
+    resetManualForm();
+  }
+
+  function removeManualDraft(id) {
+    setManualDrafts((prev) => {
+      const target = prev.find((d) => d.id === id);
+      if (target?.coverPreviewUrl) URL.revokeObjectURL(target.coverPreviewUrl);
+      return prev.filter((d) => d.id !== id);
+    });
+  }
+
+  async function submitManual() {
+    // Whatever's still sitting in the form counts too — no need to make
+    // the user press "목록에 추가" for the very last book before submitting.
+    const pending = manualTitle.trim()
+      ? [{ id: "current", title: manualTitle.trim(), author: manualAuthor.trim() || null, coverBlob: manualCoverBlob }]
+      : [];
+    const allDrafts = [...manualDrafts, ...pending];
+    if (allDrafts.length === 0) return;
+
     setBusy(true);
     setErrorMsg("");
-    const item = { slotId: "manual", status: "found", confirmed: true, title: manualTitle.trim(), author: manualAuthor.trim() || null, color: null };
     try {
-      const result = await addResolvedBooks([item]);
+      const items = [];
+      for (const draft of allDrafts) {
+        let coverImageUrl = null;
+        if (draft.coverBlob) {
+          const uploaded = await bookAdapters.uploadCover(draft.coverBlob);
+          coverImageUrl = uploaded.url;
+        }
+        items.push({ slotId: `manual-${draft.id}`, status: "found", confirmed: true, title: draft.title, author: draft.author, color: null, coverImageUrl });
+      }
+      const result = await addResolvedBooks(items);
       setSummary(result);
       setStep("success");
     } catch (e) {
@@ -514,10 +609,98 @@ export default function AddBookFlow({ onClose }) {
   }
 
   if (step === "manual") {
+    const pendingCount = manualDrafts.length + (manualTitle.trim() ? 1 : 0);
     return (
       <div style={overlayBase}>
         <FlowHeader title="직접 입력" onClose={onClose} />
-        <div className="uaje-scroll" style={{ flex: 1, overflowY: "auto", padding: 22 }}>
+        <div className="uaje-scroll" style={{ flex: 1, overflowY: "auto", padding: "22px 22px 110px" }}>
+          {manualDrafts.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 10 }}>추가할 책 목록 · {manualDrafts.length}권</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {manualDrafts.map((d) => (
+                  <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 10, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "9px 12px" }}>
+                    {d.coverPreviewUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={d.coverPreviewUrl} alt="" style={{ width: 32, height: 44, objectFit: "cover", borderRadius: "2px 6px 6px 2px", flexShrink: 0, border: "1px solid rgba(0,0,0,0.06)" }} />
+                    ) : (
+                      <div style={{ width: 32, height: 44, borderRadius: "2px 6px 6px 2px", background: "var(--surface-deep)", flexShrink: 0 }} />
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, color: "var(--text-primary)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</div>
+                      {d.author && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{d.author}</div>}
+                    </div>
+                    <button onClick={() => removeManualDraft(d.id)} className="uaje-tap" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 4, flexShrink: 0 }} aria-label="목록에서 빼기">
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 12 }}>
+            {manualDrafts.length > 0 ? `${manualDrafts.length + 1}번째 책` : "책 정보"}
+          </div>
+
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ fontSize: 11.5, color: "var(--text-muted)", display: "block", marginBottom: 8 }}>표지 사진 (선택)</label>
+
+            {manualCoverPreviewUrl ? (
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={manualCoverPreviewUrl} alt="표지 미리보기" style={{ width: 66, height: 92, objectFit: "cover", borderRadius: "3px 8px 8px 3px", boxShadow: "var(--shadow-book)", border: "1px solid rgba(0,0,0,0.06)" }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: "var(--sage)", marginBottom: 4 }}>표지를 잘라냈어요</div>
+                  <button onClick={clearManualCover} className="uaje-tap" style={{ fontSize: 11.5, color: "var(--text-muted)", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "6px 12px", cursor: "pointer" }}>
+                    다시 찍기
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => manualCoverInputRef.current?.click()}
+                disabled={manualCoverBusy}
+                className="uaje-tap"
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  height: 96,
+                  border: "1.5px dashed var(--border-strong)",
+                  borderRadius: "var(--radius-md)",
+                  background: "var(--surface)",
+                  color: "var(--text-secondary)",
+                  fontSize: 12,
+                  cursor: "pointer",
+                }}
+              >
+                {manualCoverBusy ? (
+                  <div style={{ width: 22, height: 22, borderRadius: "50%", border: "2.5px solid var(--border)", borderTopColor: "var(--terracotta)", animation: "uaje-spin 900ms linear infinite" }} />
+                ) : (
+                  <>
+                    <Camera size={19} color="var(--terracotta)" />
+                    표지를 찍으면 제목을 자동으로 채워드려요
+                  </>
+                )}
+              </button>
+            )}
+
+            {manualCoverMsg && <div style={{ fontSize: 11.5, color: "var(--dusty-blue)", marginTop: 8, lineHeight: 1.5 }}>{manualCoverMsg}</div>}
+
+            <input
+              ref={manualCoverInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: "none" }}
+              onChange={(e) => handleManualCoverSelected(e.target.files?.[0])}
+            />
+          </div>
+
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div>
               <label style={{ fontSize: 11.5, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>책 제목</label>
@@ -538,14 +721,49 @@ export default function AddBookFlow({ onClose }) {
               />
             </div>
           </div>
+
+          <button
+            onClick={addCurrentToManualDrafts}
+            disabled={!manualTitle.trim()}
+            className="uaje-tap"
+            style={{
+              marginTop: 14,
+              width: "100%",
+              border: "1px dashed var(--border-strong)",
+              borderRadius: "var(--radius-md)",
+              padding: "12px 0",
+              textAlign: "center",
+              color: manualTitle.trim() ? "var(--dusty-blue)" : "var(--text-muted)",
+              fontSize: 12.5,
+              background: "none",
+              cursor: manualTitle.trim() ? "pointer" : "default",
+            }}
+          >
+            + 목록에 추가하고 다음 책 입력하기
+          </button>
+
           {errorMsg && <div style={{ marginTop: 14, fontSize: 12, color: "var(--terracotta-deep)", textAlign: "center" }}>{errorMsg}</div>}
+        </div>
+
+        <div style={{ position: "sticky", bottom: 0, padding: "14px 22px calc(16px + env(safe-area-inset-bottom))", background: "var(--bg)", borderTop: "1px solid var(--border)" }}>
           <button
             onClick={submitManual}
-            disabled={!manualTitle.trim() || busy}
+            disabled={pendingCount === 0 || busy}
             className="uaje-tap"
-            style={{ marginTop: 22, width: "100%", background: !manualTitle.trim() ? "var(--border-strong)" : "var(--terracotta)", color: "#FBF8F0", border: "none", borderRadius: "var(--radius-md)", padding: "14px 0", fontSize: 14, fontWeight: 700, cursor: !manualTitle.trim() ? "default" : "pointer", boxShadow: "var(--shadow-soft)" }}
+            style={{
+              width: "100%",
+              background: pendingCount === 0 ? "var(--border-strong)" : "var(--terracotta)",
+              color: "#FBF8F0",
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              padding: "14px 0",
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: pendingCount === 0 ? "default" : "pointer",
+              boxShadow: "var(--shadow-soft)",
+            }}
           >
-            {busy ? "추가하는 중..." : "추가하기"}
+            {busy ? "추가하는 중..." : `${pendingCount}권 추가하기`}
           </button>
         </div>
       </div>
