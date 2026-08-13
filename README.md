@@ -16,29 +16,43 @@ Supabase 프로젝트에서 SQL Editor를 열고 순서대로 실행:
 
 ```
 supabase/schema.sql   -- 테이블 + RLS
+supabase/storage.sql  -- 책 표지 이미지를 담을 Storage 버킷 (직접 입력 → 표지 자동 인식 기능에 필요)
 supabase/seed.sql     -- (선택) 샘플 데이터 10권
 ```
 
-Supabase 대시보드 → Authentication → URL Configuration에서 Redirect URLs에
-`http://localhost:3000/auth/callback` (배포 시에는 실제 도메인으로)을 추가하세요.
-매직 링크 로그인이 여기 등록된 URL로만 돌아옵니다.
+Supabase 대시보드 → Authentication → Providers → Email에서 "Confirm email"
+설정을 확인하세요. 켜져 있으면(기본값) 회원가입 후 메일 인증 링크를 눌러야
+로그인할 수 있고, 꺼두면 가입하자마자 바로 로그인됩니다 — 가족 두세 명만
+쓰는 개인 앱이라면 꺼두는 것도 괜찮은 선택입니다.
 
 ```bash
 npm run dev
 ```
 
-`http://localhost:3000` 접속 → 로그인 화면으로 이동 → 이메일 입력 →
-받은 메일의 링크를 누르면 로그인됩니다.
+`http://localhost:3000` 접속 → 로그인 화면에서 "계정이 없으신가요? 회원가입"
+으로 이메일 + 비밀번호를 등록 → (Confirm email이 켜져 있다면 메일 인증) →
+로그인. 브라우저가 비밀번호 저장을 물어보면 저장해두면 다음부터 자동으로
+채워집니다.
 
 ## 0. 보안 — 이 버전에서 새로 추가된 것
 
 이전 버전은 "인증 없이 anon key만 있으면 전체 데이터를 읽고 쓸 수 있는"
 상태였습니다. 이번 업데이트로 네 가지를 닫았습니다.
 
-1. **로그인(Supabase Auth, 매직 링크)** — `middleware.js`가 로그인하지 않은
-   방문자를 `/login`으로 돌려보냅니다. `app/login/page.jsx`에서 이메일을
-   입력하면 링크가 오고, `app/auth/callback/route.js`가 그 링크를 실제
-   세션으로 교환합니다.
+1. **로그인(Supabase Auth, 이메일 + 비밀번호)** — `middleware.js`가
+   로그인하지 않은 방문자를 `/login`으로 돌려보냅니다.
+   `app/login/page.jsx`가 로그인/회원가입 폼을 제공하고,
+   `supabase.auth.signInWithPassword` / `signUp`을 직접 호출합니다.
+   - **비밀번호 저장**은 이 앱이 직접 구현하지 않습니다 — input에
+     `autoComplete="current-password"` 등을 정확히 붙여서 브라우저 자체의
+     비밀번호 관리자가 저장을 제안하도록 했습니다. 앱 코드로 비밀번호를
+     별도 저장하는 건 오히려 위험해서 일부러 하지 않았습니다.
+   - **자동 로그인**은 Supabase 세션이 쿠키에 저장되고 만료 전에 자동
+     갱신되기 때문에 기본으로 동작합니다 — 로그아웃하기 전까지는 브라우저를
+     껐다 켜도 로그인 상태가 유지됩니다.
+   - 비밀번호 재설정(예: "비밀번호를 잊으셨나요?") 화면은 아직 없습니다.
+     필요하면 `supabase.auth.resetPasswordForEmail()`로 추가하세요
+     ("다음 단계" 참고).
 2. **RLS를 `auth.role() = 'authenticated'` 기준으로 변경** —
    `NEXT_PUBLIC_SUPABASE_ANON_KEY`는 브라우저에 노출되는 게 원래 정상이지만,
    이제 그 키만으로는 아무것도 읽을 수 없고 유효한 로그인 세션이 있어야
@@ -68,14 +82,54 @@ npm run dev
 | 기능 | 상태 |
 |---|---|
 | 이번 주 책 / 책꽂이 / 책 상세 / 기록 / 아카이브 | ✅ 실제 Supabase 데이터로 동작 |
-| "제목으로 찾기" (책 검색) | ✅ 실제 동작 — 우리 서재(Supabase) 우선 검색 + Google Books API(키 없이도 동작, 낮은 트래픽 기준) |
-| "직접 입력" | ✅ 실제 Supabase insert |
+| "제목으로 찾기" (책 검색) | ✅ 실제 동작 — 우리 서재(Supabase) 우선 검색 + 알라딘(국내 출판사/브랜드 도서에 강함, `ALADIN_TTB_KEY` 설정 시) + Google Books API(키 없이도 동작, 국제 도서 위주) |
+| "직접 입력" | ✅ 실제 Supabase insert. 표지 사진을 찍으면 제목/저자를 vision으로 자동 채우고, 표지의 네 꼭짓점을 원근 보정해서 반듯하게 잘라 Supabase Storage에 업로드합니다. 자동으로 읽은 제목이 그림체 폰트 때문에 틀렸을 수 있어 "검색해서 확인하기"로 실제 도서 DB와 대조할 수 있습니다 (`ANTHROPIC_API_KEY` 설정 + `supabase/storage.sql` 실행 필요, 둘 다 없어도 텍스트만으로 등록 가능) |
 | 책 등록 → 이번 주 책 / 책꽂이 반영 | ✅ 실제 동작, 다시 촬영한 책은 새 책을 만들지 않고 기존 책에 읽기 세션만 추가 |
+| 책 수정 / 삭제 (책 상세 화면) | ✅ 실제 Supabase update/delete. 삭제하면 그 책의 기록·읽기 세션도 함께 삭제됩니다 (DB의 ON DELETE CASCADE) |
 | 기록 작성 ("기록 저장하기") | ✅ 실제 Supabase insert (텍스트만 — 사진 업로드는 아래 참고) |
 | "읽은 날 추가" / "다시 읽었어요" | ✅ 실제 reading_sessions insert |
 | "이미지로 저장" (선생님 공유 카드) | ✅ 실제 PNG 생성 (`html-to-image`) 후 다운로드 |
 | "여러 권 촬영하기" 책 인식 (vision) | ⚙️ `ANTHROPIC_API_KEY` + `ANTHROPIC_VISION_MODEL` 설정 시 실제 Claude vision 호출. 설정 안 하면 가짜 인식 결과를 보여주는 대신 "책 인식 기능이 아직 연결되지 않았어요" 안내와 함께 제목 검색/직접 입력으로 자연스럽게 넘어갑니다. |
-| 그림/사진 기록의 실제 이미지 업로드 | 🚧 TODO — 아래 "다음 단계" 참고 |
+| 기록(그림/사진)의 실제 이미지 업로드 | 🚧 TODO — 아래 "다음 단계" 참고 (책 표지 업로드와는 별개입니다) |
+
+### "직접 입력"은 여러 권을 한 번에 등록할 수 있어요
+
+책 한 권을 입력한 뒤 "+ 목록에 추가하고 다음 책 입력하기"를 누르면 그
+책은 목록에 쌓이고 폼이 비워져서 바로 다음 책을 입력할 수 있습니다.
+마지막 책은 목록에 굳이 추가하지 않고 폼에 남겨둔 채로 "N권 추가하기"를
+눌러도 함께 등록됩니다. 표지 사진도 책마다 각각 찍을 수 있어요.
+
+### 자동으로 읽은 제목이 틀렸을 수 있어요 — "검색해서 확인하기"
+
+vision이 표지에서 제목을 읽어도, 손글씨체·캘리그래피 같은 그림체 폰트는
+잘못 읽을 수 있습니다. 자동으로 채워진 제목을 무조건 믿지 말고, 제목
+입력칸 아래의 "검색해서 확인하기"를 눌러 실제 도서 DB(우리 서재 +
+알라딘 + Google Books)와 대조해서 정확한 항목을 고를 수 있습니다.
+이미 서재에 있는 책을 고르면 새 책을 또 만들지 않고 자동으로 "다시
+읽기"로 처리됩니다 — "여러 권 촬영하기"의 "수정" 기능과 같은 원리입니다.
+
+### "직접 입력" 표지 자동 인식 + 원근 보정 크롭은 어떻게 동작하나
+
+1. `POST /api/books/cover` — 사진 한 장을 vision에 보내서 제목/저자와,
+   표지의 네 꼭짓점 좌표(왼쪽위·오른쪽위·오른쪽아래·왼쪽아래, 0~1 비율)를
+   받습니다. 사각형 하나가 아니라 네 점을 따로 받는 이유는 책이 비스듬히
+   찍혔을 때도 실제 표지 모서리를 정확히 짚기 위해서입니다.
+2. `lib/perspectiveCrop.js` — 브라우저 canvas에서 그 네 점을 반듯한
+   사각형으로 펴서(원근 보정) 잘라냅니다. 진짜 배경 제거(투명 배경 누끼)는
+   아니지만, 네 꼭짓점이 표지의 실제 모서리이기 때문에 배경 여백이 남지
+   않고, 삐뚤게 찍은 사진도 자동으로 수평·수직이 맞게 펴집니다. (canvas에
+   원근 변환이 없어서 사각형을 삼각형 두 개로 나눠 각각 어파인 변환하는
+   방식으로 근사합니다 — 완벽한 원근 변환은 아니지만 책 표지처럼 평평한
+   물체에는 충분히 정확합니다.)
+3. `POST /api/books/cover-upload` — 잘라낸 이미지를 Supabase Storage
+   `book-covers` 버킷에 올리고 공개 URL을 돌려줍니다 (`supabase/storage.sql`
+   로 버킷을 먼저 만들어야 합니다).
+4. 그 URL이 `books.cover_image_url`로 저장되어, 이후 책꽂이/상세/공유
+   카드 등 모든 화면에서 placeholder 대신 실제 표지 이미지로 보입니다.
+
+`ANTHROPIC_API_KEY`가 없으면 이 단계 전체를 건너뛰고 "표지 자동 인식
+기능이 아직 연결되지 않았어요" 안내만 뜨며, 제목/저자를 직접 타이핑해서
+그대로 등록할 수 있습니다 (표지 없이 placeholder로 등록).
 
 ## 1. 폴더 구조
 
@@ -86,11 +140,14 @@ app/
   layout.jsx            루트 레이아웃, 폰트/전역 스타일
   page.jsx               LibraryProvider로 감싼 엔트리
   globals.css             디자인 토큰(CSS 변수) + 애니메이션 keyframes
-  login/page.jsx           매직 링크 로그인 화면
-  auth/callback/route.js   매직 링크 → 세션 교환
+  login/page.jsx           이메일+비밀번호 로그인/회원가입 화면
+  auth/callback/route.js   이메일 인증 링크 → 세션 교환 (회원가입 확인 메일용, 현재 미사용 경로 포함)
   api/
     books/identify/        POST — vision 기반 다중 책 인식 (로그인 필요 + 시간당 10회 제한)
-    books/search/           GET  — 서재 검색 + Google Books 검색 (로그인 필요 + 분당 60회 제한)
+    books/cover/             POST — 표지 한 장 인식: 제목/저자 + 크롭 좌표 (로그인 필요 + 시간당 20회 제한)
+    books/cover-upload/      POST — 잘라낸 표지 이미지를 Supabase Storage에 업로드 (로그인 필요 + 시간당 30회 제한)
+    books/[id]/               PATCH/DELETE — 책 정보 수정 / 삭제 (로그인 필요, 삭제 시 기록·세션도 함께 삭제)
+    books/search/           GET  — 서재 검색 + 알라딘 + Google Books 검색 (로그인 필요 + 분당 60회 제한)
     books/add/               POST — 신규 책 등록 / 중복 책은 세션만 추가 / 이번 주 큐레이션 연결 (로그인 필요)
     records/                  POST — 기록 추가 (로그인 필요)
     reading-sessions/         POST — 읽은 날 추가 (로그인 필요)
@@ -112,8 +169,11 @@ lib/
   rateLimit.js                간단한 in-memory 레이트 리밋 (아래 0번 참고)
   LibraryContext.jsx          Supabase에서 불러온 데이터를 React state로 들고 있는 Context.
                                books / sessionsOf(id) / recordsOf(id) / weeklyBookIds 등을 제공.
-  bookAdapters.js             identifyBooksFromImage / searchBook / saveBooks / addRecord / addReadingSession
-                               — 전부 fetch()로 /api/* 라우트를 호출, 401을 받으면 /login으로 이동
+  bookAdapters.js             identifyBooksFromImage / searchBook / saveBooks / addRecord / addReadingSession /
+                               identifyCover / uploadCover — 전부 fetch()로 /api/* 라우트를 호출, 401을 받으면 /login으로 이동
+  visionClient.js              /api/books/identify 와 /api/books/cover가 함께 쓰는 Anthropic 호출 헬퍼
+  perspectiveCrop.js            표지 네 꼭짓점을 반듯한 사각형으로 펴서 잘라내는 원근 보정 크롭 (canvas 삼각형 어파인 변환)
+  resizeImage.js                 vision에 보내기 전 사진을 적당한 크기로 줄이는 헬퍼 (용량 초과 400 에러 방지 + 비용 절감)
   resolveDetections.js        vision이 준 제목 후보를 searchBook으로 재검증하는 파이프라인
   constants.js                RECORD_TYPES, 상태 라벨 등 순수 상수/헬퍼
 
@@ -159,6 +219,10 @@ import하지 마세요.
   Google Books 썸네일 URL을 그대로 저장하고 있습니다. 이용약관을 확인한
   뒤, 필요하면 Supabase Storage로 다운로드/재업로드하는 단계를
   `/api/books/add`에 추가하세요.
+- **비밀번호 재설정 화면**: `supabase.auth.resetPasswordForEmail(email, { redirectTo: ... })`
+  로 재설정 메일을 보내고, `/auth/callback`에서 받은 세션으로 새 비밀번호를
+  입력하는 화면을 하나 추가하면 됩니다. 지금은 비밀번호를 잊으면 Supabase
+  대시보드에서 수동으로 사용자 비밀번호를 재설정해줘야 합니다.
 
 ## 5. 확인한 것
 

@@ -6,7 +6,7 @@ import { Serif, BackHeader } from "@/components/layout/Primitives";
 import { useLibrary } from "@/lib/LibraryContext";
 import { bookAdapters } from "@/lib/bookAdapters";
 import { resolveDetections } from "@/lib/resolveDetections";
-import { cropImageToBox } from "@/lib/cropImage";
+import { warpQuadToRect } from "@/lib/perspectiveCrop";
 import { resizeImageForVision } from "@/lib/resizeImage";
 import { STATUS_META } from "@/lib/constants";
 
@@ -178,11 +178,16 @@ export default function AddBookFlow({ onClose }) {
   const [searchResults, setSearchResults] = useState([]);
   const [manualTitle, setManualTitle] = useState("");
   const [manualAuthor, setManualAuthor] = useState("");
+  const [manualStatus, setManualStatus] = useState("found"); // "found" | "duplicate"
+  const [manualExistingBookId, setManualExistingBookId] = useState(null);
   const [manualCoverBlob, setManualCoverBlob] = useState(null);
   const [manualCoverPreviewUrl, setManualCoverPreviewUrl] = useState(null);
   const [manualCoverBusy, setManualCoverBusy] = useState(false);
   const [manualCoverMsg, setManualCoverMsg] = useState("");
-  const [manualDrafts, setManualDrafts] = useState([]); // [{ id, title, author, coverBlob, coverPreviewUrl }]
+  const [manualSearchOpen, setManualSearchOpen] = useState(false);
+  const [manualSearchQuery, setManualSearchQuery] = useState("");
+  const [manualSearchResults, setManualSearchResults] = useState([]);
+  const [manualDrafts, setManualDrafts] = useState([]); // [{ id, title, author, status, existingBookId, coverBlob, coverPreviewUrl }]
   const manualDraftSeq = useRef(0);
   const [summary, setSummary] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -316,11 +321,11 @@ export default function AddBookFlow({ onClose }) {
         setManualCoverBusy(false);
         return;
       }
-      const box = result.box || { xMin: 0, yMin: 0, xMax: 1, yMax: 1 };
-      // Crop from the original file, not the downscaled copy — the crop
-      // box coordinates are 0..1 ratios, so they apply the same either
-      // way, but starting from the original keeps the saved cover sharp.
-      const croppedBlob = await cropImageToBox(file, box);
+      const corners = result.corners || { tl: { x: 0, y: 0 }, tr: { x: 1, y: 0 }, br: { x: 1, y: 1 }, bl: { x: 0, y: 1 } };
+      // Warp from the original file, not the downscaled copy — the corner
+      // coordinates are 0..1 ratios, so they apply the same either way,
+      // but starting from the original keeps the saved cover sharp.
+      const croppedBlob = await warpQuadToRect(file, corners);
       if (manualCoverPreviewUrl) URL.revokeObjectURL(manualCoverPreviewUrl);
       setManualCoverBlob(croppedBlob);
       setManualCoverPreviewUrl(URL.createObjectURL(croppedBlob));
@@ -328,7 +333,11 @@ export default function AddBookFlow({ onClose }) {
       if (result.author) setManualAuthor(result.author);
       if (!result.title) {
         setManualCoverMsg("표지는 잘라냈지만 제목은 읽지 못했어요. 직접 입력해주세요.");
+      } else {
+        setManualCoverMsg("자동으로 읽은 제목이에요. 그림체 글씨는 틀릴 수 있으니, 아래 '검색해서 확인하기'로 한 번 확인해보세요.");
       }
+      setManualStatus("found");
+      setManualExistingBookId(null);
     } catch (e) {
       setManualCoverMsg("표지를 읽는 중 문제가 생겼어요. 사진을 다시 선택해볼까요?");
     }
@@ -345,9 +354,43 @@ export default function AddBookFlow({ onClose }) {
   function resetManualForm() {
     setManualTitle("");
     setManualAuthor("");
+    setManualStatus("found");
+    setManualExistingBookId(null);
     setManualCoverBlob(null);
     setManualCoverPreviewUrl(null);
     setManualCoverMsg("");
+    setManualSearchOpen(false);
+    setManualSearchQuery("");
+    setManualSearchResults([]);
+  }
+
+  async function runManualSearch(q) {
+    setManualSearchQuery(q);
+    if (!q.trim()) {
+      setManualSearchResults([]);
+      return;
+    }
+    const res = await bookAdapters.searchBook(q);
+    setManualSearchResults(res);
+  }
+
+  // Vision's OCR guess can misread stylized/hand-drawn title fonts —
+  // letting the person check the guess against real catalog/library data
+  // (instead of trusting the raw vision read as final) is what actually
+  // fixes that, the same way the multi-book flow's "수정" already does.
+  function applyManualSearchSelection(candidate) {
+    setManualTitle(candidate.title);
+    setManualAuthor(candidate.author || "");
+    if (candidate.source === "library") {
+      setManualStatus("duplicate");
+      setManualExistingBookId(candidate.existingBookId);
+      setManualCoverMsg("이미 서재에 있는 책이에요 — 다시 읽기로 기록돼요.");
+    } else {
+      setManualStatus("found");
+      setManualExistingBookId(null);
+      setManualCoverMsg("");
+    }
+    setManualSearchOpen(false);
   }
 
   // Pushes the book currently in the form into the draft list, then clears
@@ -362,6 +405,8 @@ export default function AddBookFlow({ onClose }) {
         id: manualDraftSeq.current,
         title: manualTitle.trim(),
         author: manualAuthor.trim() || null,
+        status: manualStatus,
+        existingBookId: manualExistingBookId,
         coverBlob: manualCoverBlob,
         coverPreviewUrl: manualCoverPreviewUrl,
       },
@@ -383,7 +428,7 @@ export default function AddBookFlow({ onClose }) {
     // Whatever's still sitting in the form counts too — no need to make
     // the user press "목록에 추가" for the very last book before submitting.
     const pending = manualTitle.trim()
-      ? [{ id: "current", title: manualTitle.trim(), author: manualAuthor.trim() || null, coverBlob: manualCoverBlob }]
+      ? [{ id: "current", title: manualTitle.trim(), author: manualAuthor.trim() || null, status: manualStatus, existingBookId: manualExistingBookId, coverBlob: manualCoverBlob }]
       : [];
     const allDrafts = [...manualDrafts, ...pending];
     if (allDrafts.length === 0) return;
@@ -394,11 +439,20 @@ export default function AddBookFlow({ onClose }) {
       const items = [];
       for (const draft of allDrafts) {
         let coverImageUrl = null;
-        if (draft.coverBlob) {
+        if (draft.coverBlob && draft.status !== "duplicate") {
           const uploaded = await bookAdapters.uploadCover(draft.coverBlob);
           coverImageUrl = uploaded.url;
         }
-        items.push({ slotId: `manual-${draft.id}`, status: "found", confirmed: true, title: draft.title, author: draft.author, color: null, coverImageUrl });
+        items.push({
+          slotId: `manual-${draft.id}`,
+          status: draft.status,
+          confirmed: true,
+          title: draft.title,
+          author: draft.author,
+          color: null,
+          coverImageUrl,
+          existingBookId: draft.existingBookId,
+        });
       }
       const result = await addResolvedBooks(items);
       setSummary(result);
@@ -635,6 +689,7 @@ export default function AddBookFlow({ onClose }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12.5, color: "var(--text-primary)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.title}</div>
                       {d.author && <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{d.author}</div>}
+                      {d.status === "duplicate" && <div style={{ fontSize: 10.5, color: "var(--dusty-blue)", marginTop: 2 }}>이미 서재에 있어요</div>}
                     </div>
                     <button onClick={() => removeManualDraft(d.id)} className="uaje-tap" style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer", padding: 4, flexShrink: 0 }} aria-label="목록에서 빼기">
                       <X size={14} />
@@ -712,7 +767,13 @@ export default function AddBookFlow({ onClose }) {
               <label style={{ fontSize: 11.5, color: "var(--text-muted)", display: "block", marginBottom: 6 }}>책 제목</label>
               <input
                 value={manualTitle}
-                onChange={(e) => setManualTitle(e.target.value)}
+                onChange={(e) => {
+                  setManualTitle(e.target.value);
+                  if (manualStatus === "duplicate") {
+                    setManualStatus("found");
+                    setManualExistingBookId(null);
+                  }
+                }}
                 placeholder="예: 강아지똥"
                 style={{ width: "100%", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "12px 14px", fontSize: 13.5, background: "var(--surface)", color: "var(--text-primary)", outline: "none", fontFamily: "var(--sans)" }}
               />
@@ -727,6 +788,36 @@ export default function AddBookFlow({ onClose }) {
               />
             </div>
           </div>
+
+          {manualStatus === "duplicate" && (
+            <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--dusty-blue)" }}>이미 서재에 있는 책이에요 — 다시 읽기로 기록돼요.</div>
+          )}
+
+          <button
+            onClick={() => setManualSearchOpen((v) => !v)}
+            disabled={!manualTitle.trim()}
+            className="uaje-tap"
+            style={{
+              marginTop: 10,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "none",
+              border: "none",
+              color: manualTitle.trim() ? "var(--dusty-blue)" : "var(--text-muted)",
+              fontSize: 12,
+              cursor: manualTitle.trim() ? "pointer" : "default",
+              padding: 0,
+            }}
+          >
+            <Search size={12} /> {manualSearchOpen ? "검색 닫기" : "검색해서 확인하기"}
+          </button>
+
+          {manualSearchOpen && (
+            <div className="uaje-paper-in" style={{ marginTop: 10 }}>
+              <SearchPanel query={manualSearchQuery} results={manualSearchResults} onQueryChange={runManualSearch} onSelect={applyManualSearchSelection} placeholder="정확한 제목으로 검색해보세요" />
+            </div>
+          )}
 
           <button
             onClick={addCurrentToManualDrafts}

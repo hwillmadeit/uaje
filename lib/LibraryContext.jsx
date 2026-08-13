@@ -125,6 +125,28 @@ export function LibraryProvider({ children }) {
     return session;
   }, []);
 
+  const updateBook = useCallback(async (bookId, { title, author }) => {
+    const { book } = await bookAdapters.updateBook(bookId, { title, author });
+    setBooks((prev) => prev.map((b) => (b.id === bookId ? { ...b, title: book.title, author: book.author } : b)));
+    return book;
+  }, []);
+
+  const deleteBook = useCallback(async (bookId) => {
+    await bookAdapters.deleteBook(bookId);
+    setBooks((prev) => prev.filter((b) => b.id !== bookId));
+    setWeeklyBookIds((prev) => prev.filter((id) => id !== bookId));
+    setSessionsByBook((prev) => {
+      const next = { ...prev };
+      delete next[bookId];
+      return next;
+    });
+    setRecordsByBook((prev) => {
+      const next = { ...prev };
+      delete next[bookId];
+      return next;
+    });
+  }, []);
+
   const value = {
     books,
     weeklyBookIds,
@@ -137,6 +159,8 @@ export function LibraryProvider({ children }) {
     addResolvedBooks,
     addRecord,
     addReadingDate,
+    updateBook,
+    deleteBook,
     reload: load,
   };
 

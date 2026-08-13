@@ -1,18 +1,28 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Camera, Sprout } from "lucide-react";
+import { Plus, Camera, Sprout, PenSquare, Trash2 } from "lucide-react";
 import { BackHeader, SectionLabel, Serif, BookCover } from "@/components/layout/Primitives";
 import { RecordCard } from "@/components/records/RecordCard";
 import { useLibrary } from "@/lib/LibraryContext";
 
 export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }) {
-  const { books, sessionsOf, recordsOf, addReadingDate } = useLibrary();
+  const { books, sessionsOf, recordsOf, addReadingDate, updateBook, deleteBook } = useLibrary();
   const book = books.find((b) => b.id === bookId);
   const sessions = sessionsOf(bookId);
   const records = recordsOf(bookId);
   const actionRecords = records.filter((r) => r.type === "action" || r.type === "photo");
   const [addingDate, setAddingDate] = useState(false);
+
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editAuthor, setEditAuthor] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   if (!book) return null;
 
@@ -26,26 +36,124 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
     setAddingDate(false);
   }
 
+  function startEditing() {
+    setEditTitle(book.title);
+    setEditAuthor(book.author || "");
+    setEditError("");
+    setEditing(true);
+  }
+
+  async function handleSaveEdit() {
+    if (!editTitle.trim()) return;
+    setEditBusy(true);
+    setEditError("");
+    try {
+      await updateBook(bookId, { title: editTitle.trim(), author: editAuthor.trim() || null });
+      setEditing(false);
+    } catch (e) {
+      setEditError("수정하는 중 문제가 생겼어요. 다시 시도해볼까요?");
+    }
+    setEditBusy(false);
+  }
+
+  async function handleConfirmDelete() {
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await deleteBook(bookId);
+      onBack();
+    } catch (e) {
+      setDeleteError("삭제하는 중 문제가 생겼어요. 다시 시도해볼까요?");
+      setDeleteBusy(false);
+    }
+  }
+
   return (
     <div>
       <BackHeader onBack={onBack} title="책 상세" />
       <div style={{ padding: 22 }}>
         <div style={{ background: "var(--surface-soft)", border: "1px solid var(--border)", borderRadius: "var(--radius-xl)", padding: 20, display: "flex", gap: 18 }}>
           <BookCover book={book} width={94} height={130} />
-          <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 6 }}>
-            <Serif as="div" style={{ fontSize: 19, fontWeight: 700, color: "var(--text-primary)" }}>
-              {book.title}
-            </Serif>
-            <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>{book.author}</div>
-            <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.8 }}>
-              읽은 횟수 {sessions.length}회
-              {sessions.length > 0 && (
-                <>
-                  <br />첫 읽음 {sessions[0].date}
-                  <br />최근 읽음 {sessions[sessions.length - 1].date}
-                </>
-              )}
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 6, flex: 1, minWidth: 0 }}>
+            {editing ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="책 제목"
+                  style={{ width: "100%", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "8px 10px", fontSize: 13.5, background: "var(--surface)", color: "var(--text-primary)", outline: "none", fontFamily: "var(--sans)" }}
+                />
+                <input
+                  value={editAuthor}
+                  onChange={(e) => setEditAuthor(e.target.value)}
+                  placeholder="저자 (선택)"
+                  style={{ width: "100%", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "8px 10px", fontSize: 12.5, background: "var(--surface)", color: "var(--text-primary)", outline: "none", fontFamily: "var(--sans)" }}
+                />
+                {editError && <div style={{ fontSize: 11, color: "var(--terracotta-deep)" }}>{editError}</div>}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="uaje-tap"
+                    style={{ flex: 1, background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "8px 0", fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handleSaveEdit}
+                    disabled={!editTitle.trim() || editBusy}
+                    className="uaje-tap"
+                    style={{ flex: 1, background: "var(--terracotta)", border: "none", borderRadius: "var(--radius-sm)", padding: "8px 0", fontSize: 12, fontWeight: 600, color: "#FBF8F0", cursor: "pointer" }}
+                  >
+                    {editBusy ? "저장하는 중..." : "저장"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <Serif as="div" style={{ fontSize: 19, fontWeight: 700, color: "var(--text-primary)" }}>
+                  {book.title}
+                </Serif>
+                <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>{book.author}</div>
+                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.8 }}>
+                  읽은 횟수 {sessions.length}회
+                  {sessions.length > 0 && (
+                    <>
+                      <br />첫 읽음 {sessions[0].date}
+                      <br />최근 읽음 {sessions[sessions.length - 1].date}
+                    </>
+                  )}
+                </div>
+
+                {confirmingDelete ? (
+                  <div style={{ marginTop: 10, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: 10 }}>
+                    <div style={{ fontSize: 11.5, color: "var(--text-primary)", lineHeight: 1.6, marginBottom: 8 }}>정말 삭제할까요? 기록도 함께 사라져요.</div>
+                    {deleteError && <div style={{ fontSize: 11, color: "var(--terracotta-deep)", marginBottom: 8 }}>{deleteError}</div>}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button onClick={() => setConfirmingDelete(false)} className="uaje-tap" style={{ flex: 1, background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "7px 0", fontSize: 11.5, color: "var(--text-secondary)", cursor: "pointer" }}>
+                        취소
+                      </button>
+                      <button
+                        onClick={handleConfirmDelete}
+                        disabled={deleteBusy}
+                        className="uaje-tap"
+                        style={{ flex: 1, background: "var(--terracotta-deep)", border: "none", borderRadius: "var(--radius-sm)", padding: "7px 0", fontSize: 11.5, fontWeight: 600, color: "#FBF8F0", cursor: "pointer" }}
+                      >
+                        {deleteBusy ? "삭제하는 중..." : "삭제"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: 14, marginTop: 10 }}>
+                    <button onClick={startEditing} className="uaje-tap" style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: "var(--dusty-blue)", fontSize: 11.5, cursor: "pointer", padding: 0 }}>
+                      <PenSquare size={12} /> 수정
+                    </button>
+                    <button onClick={() => setConfirmingDelete(true)} className="uaje-tap" style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", color: "var(--text-muted)", fontSize: 11.5, cursor: "pointer", padding: 0 }}>
+                      <Trash2 size={12} /> 삭제
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
 
