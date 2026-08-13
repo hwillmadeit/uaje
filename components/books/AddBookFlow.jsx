@@ -7,6 +7,7 @@ import { useLibrary } from "@/lib/LibraryContext";
 import { bookAdapters } from "@/lib/bookAdapters";
 import { resolveDetections } from "@/lib/resolveDetections";
 import { cropImageToBox } from "@/lib/cropImage";
+import { resizeImageForVision } from "@/lib/resizeImage";
 import { STATUS_META } from "@/lib/constants";
 
 function FlowHeader({ title, onClose }) {
@@ -212,7 +213,8 @@ export default function AddBookFlow({ onClose }) {
     setStep("analyzing");
     setErrorMsg("");
     try {
-      const raw = await bookAdapters.identifyBooksFromImage(photoFile);
+      const resized = await resizeImageForVision(photoFile);
+      const raw = await bookAdapters.identifyBooksFromImage(resized);
       if (raw.notConfigured) {
         setNotConfiguredMsg(raw.message);
         setStep("preview");
@@ -307,13 +309,17 @@ export default function AddBookFlow({ onClose }) {
     setErrorMsg("");
     setManualCoverBusy(true);
     try {
-      const result = await bookAdapters.identifyCover(file);
+      const resized = await resizeImageForVision(file);
+      const result = await bookAdapters.identifyCover(resized);
       if (result.notConfigured) {
         setManualCoverMsg(result.message);
         setManualCoverBusy(false);
         return;
       }
       const box = result.box || { xMin: 0, yMin: 0, xMax: 1, yMax: 1 };
+      // Crop from the original file, not the downscaled copy — the crop
+      // box coordinates are 0..1 ratios, so they apply the same either
+      // way, but starting from the original keeps the saved cover sharp.
       const croppedBlob = await cropImageToBox(file, box);
       if (manualCoverPreviewUrl) URL.revokeObjectURL(manualCoverPreviewUrl);
       setManualCoverBlob(croppedBlob);

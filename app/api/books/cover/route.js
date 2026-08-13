@@ -4,7 +4,7 @@ import { callVisionJSON } from "@/lib/visionClient";
 
 export const runtime = "nodejs";
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // Claude's vision API rejects images above ~5MB — the client resizes before upload, this is just a backstop
 
 const COVER_PROMPT = `이 사진에는 책이 한 권 있습니다.
 

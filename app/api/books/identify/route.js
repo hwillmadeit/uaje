@@ -1,9 +1,10 @@
 import { getRouteUser } from "@/lib/supabaseServer";
 import { rateLimit } from "@/lib/rateLimit";
+import { callVisionJSON } from "@/lib/visionClient";
 
 export const runtime = "nodejs";
 
-const MAX_IMAGE_BYTES = 8 * 1024 * 1024; // 8MB — plenty for a phone photo, cheap to reject bigger
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // Claude's vision API rejects images above ~5MB — the client resizes before upload, this is just a backstop
 
 const VISION_PROMPT = `이 사진에는 어린이책 여러 권이 나란히 놓여 있습니다.
 사진 속에서 구분되는 책 표지 영역을 각각 찾아, 각 표지에서 읽을 수 있는
@@ -14,11 +15,6 @@ const VISION_PROMPT = `이 사진에는 어린이책 여러 권이 나란히 놓
 
 제목을 알아볼 수 없는 표지는 detectedTitle을 null로 주세요.
 책이 아닌 것은 결과에 포함하지 마세요.`;
-
-function extractJson(text) {
-  const cleaned = text.replace(/```json|```/g, "").trim();
-  return JSON.parse(cleaned);
-}
 
 export async function POST(req) {
   // Vision calls cost money per request, so this route is gated behind
@@ -59,37 +55,7 @@ export async function POST(req) {
     const base64 = bytes.toString("base64");
     const mediaType = file.type || "image/jpeg";
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 1024,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-              { type: "text", text: VISION_PROMPT },
-            ],
-          },
-        ],
-      }),
-    });
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("Vision API error:", errText);
-      return Response.json({ error: "책을 찾는 중 문제가 생겼어요." }, { status: 502 });
-    }
-
-    const data = await res.json();
-    const text = (data.content || []).map((b) => b.text || "").join("");
-    const raw = extractJson(text);
+    const raw = await callVisionJSON({ apiKey, model, base64, mediaType, prompt: VISION_PROMPT });
 
     const detections = raw.map((d, i) => ({
       slotId: `d${i + 1}`,
