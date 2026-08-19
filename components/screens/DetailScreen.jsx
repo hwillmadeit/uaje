@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Camera, Sprout, PenSquare, Trash2 } from "lucide-react";
+import { Plus, Camera, Sprout, PenSquare, Trash2, ZoomIn } from "lucide-react";
 import { BackHeader, SectionLabel, Serif, BookCover } from "@/components/layout/Primitives";
+import ImageLightbox from "@/components/layout/ImageLightbox";
 import { RecordCard } from "@/components/records/RecordCard";
 import { useLibrary } from "@/lib/LibraryContext";
 
@@ -12,6 +13,8 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
   const sessions = sessionsOf(bookId);
   const records = recordsOf(bookId);
   const actionRecords = records.filter((r) => r.type === "action" || r.type === "photo");
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const coverImageUrl = book?.cover_image_url || book?.coverImageUrl;
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -86,7 +89,21 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
       <BackHeader onBack={onBack} title="책 상세" />
       <div style={{ padding: 22 }}>
         <div style={{ background: "var(--surface-soft)", border: "1px solid var(--border)", borderRadius: "var(--radius-xl)", padding: 20, display: "flex", gap: 18 }}>
-          <BookCover book={book} width={94} height={130} />
+          {coverImageUrl ? (
+            <button
+              onClick={() => setLightboxOpen(true)}
+              className="uaje-tap"
+              style={{ background: "none", border: "none", padding: 0, cursor: "pointer", position: "relative", flexShrink: 0 }}
+              aria-label="표지 확대 보기"
+            >
+              <BookCover book={book} width={94} height={130} />
+              <div style={{ position: "absolute", right: 4, bottom: 4, width: 22, height: 22, borderRadius: "50%", background: "rgba(51,43,36,0.55)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <ZoomIn size={12} color="#FBF8F0" />
+              </div>
+            </button>
+          ) : (
+            <BookCover book={book} width={94} height={130} />
+          )}
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 6, flex: 1, minWidth: 0 }}>
             {editing ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -268,6 +285,8 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
           </button>
         )}
       </div>
+
+      {lightboxOpen && coverImageUrl && <ImageLightbox src={coverImageUrl} alt={book.title} onClose={() => setLightboxOpen(false)} />}
     </div>
   );
 }

@@ -104,13 +104,13 @@ function ShelfRow({ books, openBook, newIds, isLast }) {
 export function BookShelf({ books, openBook, newIds }) {
   const rows = React.useMemo(() => {
     // Newest first — most-recently-added books show up at the top of the
-    // shelf instead of getting buried at the bottom. Sorted here (a local
-    // copy) rather than in the shared `books` array, since other screens
-    // (Archive's "favorite book" pick, etc.) rely on the original order.
-    const sorted = [...books].sort((a, b) => {
-      const byDate = (b.created_at || "").localeCompare(a.created_at || "");
-      return byDate !== 0 ? byDate : b.id - a.id;
-    });
+    // shelf instead of getting buried at the bottom. `id` is an
+    // auto-incrementing identity column, so higher id reliably means
+    // "added later" with no timestamp/timezone parsing involved. Sorted
+    // here (a local copy) rather than in the shared `books` array, since
+    // other screens (Archive's "favorite book" pick, etc.) rely on the
+    // original ascending order.
+    const sorted = [...books].sort((a, b) => b.id - a.id);
     return chunk(sorted, SHELF_PER_ROW);
   }, [books]);
 
