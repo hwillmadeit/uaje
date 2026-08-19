@@ -84,7 +84,7 @@ npm run dev
 | 이번 주 책 / 책꽂이 / 책 상세 / 기록 / 아카이브 | ✅ 실제 Supabase 데이터로 동작 |
 | "제목으로 찾기" (책 검색) | ✅ 실제 동작 — 우리 서재(Supabase) 우선 검색 + 알라딘(국내 출판사/브랜드 도서에 강함, `ALADIN_TTB_KEY` 설정 시) + Google Books API(키 없이도 동작, 국제 도서 위주) |
 | "직접 입력" | ✅ 실제 Supabase insert. 표지 사진을 찍으면 제목/저자를 vision으로 자동 채우고, 표지의 네 꼭짓점을 원근 보정해서 반듯하게 잘라 Supabase Storage에 업로드합니다. 자동으로 읽은 제목이 그림체 폰트 때문에 틀렸을 수 있어 "검색해서 확인하기"로 실제 도서 DB와 대조할 수 있습니다 (`ANTHROPIC_API_KEY` 설정 + `supabase/storage.sql` 실행 필요, 둘 다 없어도 텍스트만으로 등록 가능) |
-| 책 등록 → 이번 주 책 / 책꽂이 반영 | ✅ 실제 동작, 다시 촬영한 책은 새 책을 만들지 않고 기존 책에 읽기 세션만 추가. "이번 주"는 실제 오늘이 포함된 달력 주(월~일) 기준으로 판단하고, 없으면 자동으로 만듭니다 |
+| 책 등록 → 이번 주 책 / 책꽂이 반영 | ✅ 실제 동작, 다시 촬영한 책은 새 책을 만들지 않고 기존 책에 읽기 세션만 추가. "이번 주 책"은 하나의 지속되는 목록입니다 — 달력 주가 바뀌어도 초기화되지 않고, 추가한 책은 직접 빼기 전까지 계속 보입니다. 책꽂이는 최근 추가한 책이 위로 올라옵니다 |
 | 책 수정 / 삭제 (책 상세 화면) | ✅ 실제 Supabase update/delete. 삭제하면 그 책의 기록·읽기 세션도 함께 삭제됩니다 (DB의 ON DELETE CASCADE) |
 | "읽은 날 추가" / "다시 읽었어요" | ✅ 실제 reading_sessions insert, 날짜를 직접 골라서 추가 가능. 과거 날짜를 넣으면 기존 기록들과 순서를 다시 계산해서 "첫 번째/두 번째 읽음" 표시가 항상 날짜순으로 맞습니다 |
 | 기록 작성 ("기록 저장하기") | ✅ 실제 Supabase insert. "그림" 기록은 앱 안에서 직접 손그림을 그리거나(색상 8개·굵기 3단계·지우개) 사진을 찍어 올릴 수 있고, 둘 다 Supabase Storage에 실제로 업로드됩니다 |
@@ -186,7 +186,9 @@ lib/
   supabaseServer.js           supabaseServer(): service role 클라이언트(쓰기용, 관리자 권한)
                                getRouteUser(): 요청 쿠키에서 현재 로그인 사용자를 읽음 — 모든 쓰기 라우트가 제일 먼저 호출
   rateLimit.js                간단한 in-memory 레이트 리밋 (아래 0번 참고)
-  weekRange.js                  실제 오늘이 포함된 달력 주(월~일) 계산 — "이번 주"의 기준을 여기 한 곳으로 통일
+  weekRange.js                  실제 오늘이 포함된 달력 주(월~일) 계산 — "이번 주 책" 상단에 보여주는
+                               날짜 라벨 표시에만 쓰입니다. 어떤 책이 보일지는 이 날짜와 무관하게
+                               하나의 지속되는 목록(weekly_curations 첫 행)으로 관리됩니다.
   LibraryContext.jsx          Supabase에서 불러온 데이터를 React state로 들고 있는 Context.
                                books / sessionsOf(id) / recordsOf(id) / weeklyBookIds / updateBook / deleteBook 등을 제공.
   bookAdapters.js             identifyBooksFromImage / searchBook / saveBooks / addRecord / addReadingSession /

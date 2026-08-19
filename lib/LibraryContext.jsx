@@ -29,10 +29,12 @@ export function LibraryProvider({ children }) {
           supabase.from("books").select("*").order("id"),
           supabase.from("reading_sessions").select("*").order("book_id").order("read_number"),
           supabase.from("records").select("*").order("book_id").order("created_at"),
-          // "이번 주" is looked up by the real current week's date range, not
-          // just "whichever curation row was created most recently" — that
-          // way it always means the actual calendar week containing today.
-          supabase.from("weekly_curations").select("id, week_start, week_end").eq("week_start", weekStart).maybeSingle(),
+          // There's exactly one "이번 주" curation row, reused indefinitely
+          // (see /api/books/add) — not one scoped to today's calendar week,
+          // so books that were added don't disappear once the real week
+          // rolls over. The date range shown in the UI is still computed
+          // fresh below; it's just a label, not a lookup key.
+          supabase.from("weekly_curations").select("id").order("created_at", { ascending: true }).limit(1).maybeSingle(),
         ]);
       if (bookErr) throw bookErr;
       if (sessErr) throw sessErr;

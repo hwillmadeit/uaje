@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useImperativeHandle, forwardRef, useEffect } from "react";
-import { Eraser, RotateCcw } from "lucide-react";
+import { Eraser, RotateCcw, Undo2 } from "lucide-react";
 
 const COLORS = ["#332B24", "#C9845D", "#D9534F", "#E8A33D", "#7CB342", "#3D8BCC", "#8E6BC2", "#B9A184"];
 const BRUSH_SIZES = [
@@ -9,6 +9,7 @@ const BRUSH_SIZES = [
   { label: "중간", value: 7 },
   { label: "굵게", value: 14 },
 ];
+const MAX_HISTORY = 20;
 
 // Exposes toBlob() via ref so the parent (RecordComposer) can grab the
 // drawing when the person hits "기록 저장하기" — the canvas itself doesn't
@@ -17,10 +18,12 @@ const DrawingPad = forwardRef(function DrawingPad(_props, ref) {
   const canvasRef = useRef(null);
   const drawing = useRef(false);
   const last = useRef({ x: 0, y: 0 });
+  const history = useRef([]); // snapshots taken right before each stroke
   const [color, setColor] = useState(COLORS[0]);
   const [size, setSize] = useState(BRUSH_SIZES[1].value);
   const [erasing, setErasing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+  const [canUndo, setCanUndo] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -42,8 +45,20 @@ const DrawingPad = forwardRef(function DrawingPad(_props, ref) {
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
+  // getImageData/putImageData operate on the canvas's raw pixel buffer and
+  // ignore the ctx.scale() transform, so capturing the full canvas.width /
+  // canvas.height here is correct regardless of device pixel ratio.
+  function pushHistory() {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    history.current.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    if (history.current.length > MAX_HISTORY) history.current.shift();
+    setCanUndo(true);
+  }
+
   function handlePointerDown(e) {
     canvasRef.current.setPointerCapture(e.pointerId);
+    pushHistory();
     drawing.current = true;
     last.current = getPos(e);
     setHasDrawn(true);
@@ -66,12 +81,22 @@ const DrawingPad = forwardRef(function DrawingPad(_props, ref) {
     drawing.current = false;
   }
 
+  function undo() {
+    if (history.current.length === 0) return;
+    const prev = history.current.pop();
+    canvasRef.current.getContext("2d").putImageData(prev, 0, 0);
+    setCanUndo(history.current.length > 0);
+    if (history.current.length === 0) setHasDrawn(false);
+  }
+
   function clearCanvas() {
     const canvas = canvasRef.current;
     const rect = canvas.getBoundingClientRect();
     const ctx = canvas.getContext("2d");
     ctx.fillStyle = "#FEFCF6";
     ctx.fillRect(0, 0, rect.width, rect.height);
+    history.current = [];
+    setCanUndo(false);
     setHasDrawn(false);
   }
 
@@ -126,6 +151,26 @@ const DrawingPad = forwardRef(function DrawingPad(_props, ref) {
           ))}
         </div>
         <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={undo}
+            disabled={!canUndo}
+            className="uaje-tap"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: "50%",
+              border: "1px solid var(--border)",
+              background: "var(--surface)",
+              color: canUndo ? "var(--text-secondary)" : "var(--border-strong)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: canUndo ? "pointer" : "default",
+            }}
+            aria-label="되돌리기"
+          >
+            <Undo2 size={13} />
+          </button>
           <button
             onClick={() => setErasing((v) => !v)}
             className="uaje-tap"
@@ -182,3 +227,4 @@ const DrawingPad = forwardRef(function DrawingPad(_props, ref) {
 });
 
 export default DrawingPad;
+

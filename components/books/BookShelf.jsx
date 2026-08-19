@@ -102,7 +102,17 @@ function ShelfRow({ books, openBook, newIds, isLast }) {
 }
 
 export function BookShelf({ books, openBook, newIds }) {
-  const rows = React.useMemo(() => chunk(books, SHELF_PER_ROW), [books]);
+  const rows = React.useMemo(() => {
+    // Newest first — most-recently-added books show up at the top of the
+    // shelf instead of getting buried at the bottom. Sorted here (a local
+    // copy) rather than in the shared `books` array, since other screens
+    // (Archive's "favorite book" pick, etc.) rely on the original order.
+    const sorted = [...books].sort((a, b) => {
+      const byDate = (b.created_at || "").localeCompare(a.created_at || "");
+      return byDate !== 0 ? byDate : b.id - a.id;
+    });
+    return chunk(sorted, SHELF_PER_ROW);
+  }, [books]);
 
   return (
     <div style={{ background: "var(--surface-soft)", border: "1px solid var(--border)", borderRadius: "var(--radius-xl)", padding: "36px 22px 22px", boxShadow: "var(--shadow-soft)" }}>

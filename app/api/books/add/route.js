@@ -49,14 +49,17 @@ export async function POST(req) {
       }
     }
 
-    // Link everything into *this real calendar week's* curation — find it
-    // by actual date range, and create it if it doesn't exist yet. (The
-    // previous version picked "whichever curation row has the latest
-    // week_start", which silently linked nothing if no row existed at all,
-    // and never rolled over to a new week on its own.)
-    const { weekStart, weekEnd } = currentWeekRange();
-    let { data: curation } = await supabase.from("weekly_curations").select("id").eq("week_start", weekStart).maybeSingle();
+    // Link everything into a single, persistent "이번 주" list — not one
+    // tied to the real calendar week. The earlier version looked this up
+    // by today's actual week_start, which meant it silently went empty
+    // the moment the real week rolled over (correct by strict calendar
+    // semantics, but surprising for a personal app with no "browse past
+    // weeks" UI — books people added just seemed to vanish). Now there's
+    // exactly one curation row, created once and reused forever; new books
+    // always append to it instead of ever starting a fresh empty one.
+    let { data: curation } = await supabase.from("weekly_curations").select("id").order("created_at", { ascending: true }).limit(1).maybeSingle();
     if (!curation) {
+      const { weekStart, weekEnd } = currentWeekRange();
       const { data: created, error: curErr } = await supabase
         .from("weekly_curations")
         .insert({ week_start: weekStart, week_end: weekEnd, title: "이번 주 책" })
