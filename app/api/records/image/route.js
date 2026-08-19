@@ -1,5 +1,6 @@
 import { supabaseServer, getRouteUser } from "@/lib/supabaseServer";
 import { rateLimit } from "@/lib/rateLimit";
+import { detectImageType, EXT_BY_TYPE } from "@/lib/imageValidation";
 
 export const runtime = "nodejs";
 
@@ -25,8 +26,13 @@ export async function POST(req) {
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  const contentType = file.type || "image/png";
-  const ext = contentType.split("/")[1] || "png";
+
+  const detectedType = detectImageType(bytes);
+  if (!detectedType) {
+    return Response.json({ error: "이미지 파일만 올릴 수 있어요." }, { status: 400 });
+  }
+  const contentType = detectedType;
+  const ext = EXT_BY_TYPE[contentType];
   const path = `${user.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
   const supabase = supabaseServer();

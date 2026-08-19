@@ -1,10 +1,15 @@
 import { supabaseServer, getRouteUser } from "@/lib/supabaseServer";
 import { currentWeekRange } from "@/lib/weekRange";
+import { rateLimit } from "@/lib/rateLimit";
 
 export async function POST(req) {
   const user = await getRouteUser();
   if (!user) {
     return Response.json({ error: "로그인이 필요해요." }, { status: 401 });
+  }
+  const limited = rateLimit(`books-add:${user.id}`, { limit: 30, windowMs: 60 * 1000 });
+  if (!limited.ok) {
+    return Response.json({ error: "너무 여러 번 시도했어요. 잠시 후 다시 해주세요." }, { status: 429 });
   }
 
   const { items } = await req.json();
