@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
-import { Camera, Palette, Check } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Camera, Palette, Check, Pencil, Image as ImageIcon } from "lucide-react";
 import { Serif, BackHeader, BookCover } from "@/components/layout/Primitives";
 import { useLibrary } from "@/lib/LibraryContext";
+import { bookAdapters } from "@/lib/bookAdapters";
 import { RECORD_TYPES, RT } from "@/lib/constants";
+import DrawingPad from "@/components/records/DrawingPad";
 
 export default function RecordComposer({ bookId, onBack }) {
   const { books, sessionsOf, addRecord } = useLibrary();
@@ -14,17 +16,40 @@ export default function RecordComposer({ bookId, onBack }) {
 
   const [type, setType] = useState(null);
   const [text, setText] = useState("");
+  const [drawingMode, setDrawingMode] = useState("draw"); // "draw" | "photo" — only used when type === "drawing"
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState(null);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const drawingPadRef = useRef(null);
+  const photoInputRef = useRef(null);
 
   if (!book) return null;
+
+  function handlePhotoSelected(file) {
+    if (!file) return;
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    setPhotoFile(file);
+    setPhotoPreviewUrl(URL.createObjectURL(file));
+  }
 
   async function handleSave() {
     setSaving(true);
     setErrorMsg("");
     try {
-      await addRecord({ bookId, sessionId: latestSessionId, type, content: text.trim() || null });
+      let imageUrl = null;
+
+      if (type === "drawing" && drawingMode === "draw" && drawingPadRef.current?.hasDrawn()) {
+        const blob = await drawingPadRef.current.toBlob();
+        const uploaded = await bookAdapters.uploadRecordImage(blob);
+        imageUrl = uploaded.url;
+      } else if ((type === "drawing" || type === "photo") && photoFile) {
+        const uploaded = await bookAdapters.uploadRecordImage(photoFile);
+        imageUrl = uploaded.url;
+      }
+
+      await addRecord({ bookId, sessionId: latestSessionId, type, content: text.trim() || null, imageUrl });
       setSaved(true);
     } catch (e) {
       setErrorMsg("기록을 저장하는 중 문제가 생겼어요. 다시 시도해볼까요?");
@@ -83,26 +108,67 @@ export default function RecordComposer({ bookId, onBack }) {
             ← 다른 종류로 기록하기
           </button>
 
-          <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-soft)", padding: "24px 22px", position: "relative", minHeight: type === "drawing" || type === "photo" ? 270 : 210 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              {React.createElement(RT[type].Icon, { size: 15, color: "var(--terracotta)" })}
-              <span style={{ fontSize: 12.5, color: "var(--text-primary)", fontWeight: 600 }}>{RT[type].label}</span>
+          <div style={{ flex: 1, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-soft)", padding: "24px 22px", position: "relative" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {React.createElement(RT[type].Icon, { size: 15, color: "var(--terracotta)" })}
+                <span style={{ fontSize: 12.5, color: "var(--text-primary)", fontWeight: 600 }}>{RT[type].label}</span>
+              </div>
+
+              {type === "drawing" && (
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => setDrawingMode("draw")}
+                    className="uaje-tap"
+                    style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, padding: "5px 9px", borderRadius: "var(--radius-sm)", border: `1px solid ${drawingMode === "draw" ? "var(--terracotta)" : "var(--border)"}`, background: drawingMode === "draw" ? "var(--surface-soft)" : "none", color: drawingMode === "draw" ? "var(--terracotta)" : "var(--text-muted)", cursor: "pointer" }}
+                  >
+                    <Pencil size={11} /> 여기서 그리기
+                  </button>
+                  <button
+                    onClick={() => setDrawingMode("photo")}
+                    className="uaje-tap"
+                    style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, padding: "5px 9px", borderRadius: "var(--radius-sm)", border: `1px solid ${drawingMode === "photo" ? "var(--terracotta)" : "var(--border)"}`, background: drawingMode === "photo" ? "var(--surface-soft)" : "none", color: drawingMode === "photo" ? "var(--terracotta)" : "var(--text-muted)", cursor: "pointer" }}
+                  >
+                    <ImageIcon size={11} /> 사진으로 올리기
+                  </button>
+                </div>
+              )}
             </div>
 
-            {(type === "drawing" || type === "photo") && (
-              <label style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 160, border: "1.5px dashed var(--border-strong)", borderRadius: "var(--radius-md)", color: "var(--text-muted)", fontSize: 12, gap: 9, cursor: "pointer", marginBottom: 16 }}>
-                {type === "drawing" ? <Palette size={22} /> : <Camera size={22} />}
-                사진으로 찍어서 올려주세요
-                {/* TODO: wire this to Supabase Storage (upload → public URL → image_url on the record). Left as a local-only picker for now. */}
-                <input type="file" accept="image/*" style={{ display: "none" }} />
-              </label>
+            {type === "drawing" && drawingMode === "draw" && (
+              <div style={{ marginBottom: 16 }}>
+                <DrawingPad ref={drawingPadRef} />
+              </div>
             )}
+
+            {((type === "drawing" && drawingMode === "photo") || type === "photo") &&
+              (photoPreviewUrl ? (
+                <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photoPreviewUrl} alt="" style={{ width: 66, height: 66, objectFit: "cover", borderRadius: "var(--radius-sm)", border: "1px solid rgba(0,0,0,0.06)" }} />
+                  <button
+                    onClick={() => photoInputRef.current?.click()}
+                    className="uaje-tap"
+                    style={{ fontSize: 11.5, color: "var(--text-muted)", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "6px 12px", cursor: "pointer" }}
+                  >
+                    다시 선택
+                  </button>
+                </div>
+              ) : (
+                <label
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 140, border: "1.5px dashed var(--border-strong)", borderRadius: "var(--radius-md)", color: "var(--text-muted)", fontSize: 12, gap: 9, cursor: "pointer", marginBottom: 16 }}
+                >
+                  {type === "drawing" ? <Palette size={20} /> : <Camera size={20} />}
+                  사진으로 찍어서 올려주세요
+                  <input ref={photoInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handlePhotoSelected(e.target.files?.[0])} />
+                </label>
+              ))}
 
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder={type === "quote" ? "아이가 한 말을 그대로 적어주세요" : type === "action" ? "책을 읽고 실제로 해본 것을 적어주세요" : "편하게 적어주세요"}
-              style={{ width: "100%", minHeight: 96, border: "none", outline: "none", background: "transparent", resize: "none", fontSize: 14, lineHeight: 1.8, color: "var(--text-primary)", fontFamily: "var(--sans)" }}
+              style={{ width: "100%", minHeight: 80, border: "none", outline: "none", background: "transparent", resize: "none", fontSize: 14, lineHeight: 1.8, color: "var(--text-primary)", fontFamily: "var(--sans)" }}
             />
           </div>
 

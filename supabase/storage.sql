@@ -13,6 +13,13 @@ insert into storage.buckets (id, name, public)
 values ('book-covers', 'book-covers', true)
 on conflict (id) do nothing;
 
--- Uploads only ever happen through /api/books/cover-upload using the
--- service_role key (bypasses storage RLS), so no INSERT policy is needed
--- here — same pattern as the rest of this app's write routes.
+-- Same reasoning as above, for record images (drawings made in the app,
+-- and photos attached to a record).
+insert into storage.buckets (id, name, public)
+values ('record-images', 'record-images', true)
+on conflict (id) do nothing;
+
+-- Uploads only ever happen through /api/books/cover-upload and
+-- /api/records/image using the service_role key (bypasses storage RLS),
+-- so no INSERT policy is needed here — same pattern as the rest of this
+-- app's write routes.

@@ -61,7 +61,20 @@ function normalizeCorners(raw) {
     parsed[key] = { x, y };
   }
   if (quadArea(parsed) < 0.02) return FULL_FRAME_CORNERS;
-  return parsed;
+  return insetQuad(parsed, 0.035);
+}
+
+// Vision models tend to slightly overestimate a photographed object's
+// edges rather than undershoot them, so the raw quad usually has a sliver
+// of background baked in. Nudging every corner ~3.5% toward the quad's own
+// centroid trims that off consistently, at the cost of shaving a similar
+// sliver off the actual cover edge — a reasonable trade since a shelf
+// thumbnail doesn't need the outermost few pixels of a cover anyway.
+function insetQuad(c, amount) {
+  const cx = (c.tl.x + c.tr.x + c.br.x + c.bl.x) / 4;
+  const cy = (c.tl.y + c.tr.y + c.br.y + c.bl.y) / 4;
+  const pull = (p) => ({ x: p.x + (cx - p.x) * amount, y: p.y + (cy - p.y) * amount });
+  return { tl: pull(c.tl), tr: pull(c.tr), br: pull(c.br), bl: pull(c.bl) };
 }
 
 export async function POST(req) {

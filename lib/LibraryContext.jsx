@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { supabase } from "./supabaseClient";
 import { formatDate } from "./formatDate";
 import { bookAdapters } from "./bookAdapters";
+import { currentWeekRange } from "./weekRange";
 
 const LibraryContext = createContext(null);
 
@@ -21,12 +22,17 @@ export function LibraryProvider({ children }) {
     setLoading(true);
     setError(null);
     try {
-      const [{ data: bookRows, error: bookErr }, { data: sessionRows, error: sessErr }, { data: recordRows, error: recErr }, { data: curationRows, error: curErr }] =
+      const { weekStart, weekEnd } = currentWeekRange();
+
+      const [{ data: bookRows, error: bookErr }, { data: sessionRows, error: sessErr }, { data: recordRows, error: recErr }, { data: curationRow, error: curErr }] =
         await Promise.all([
           supabase.from("books").select("*").order("id"),
           supabase.from("reading_sessions").select("*").order("book_id").order("read_number"),
           supabase.from("records").select("*").order("book_id").order("created_at"),
-          supabase.from("weekly_curations").select("id, week_start, week_end, weekly_curation_books(book_id, order)").order("week_start", { ascending: false }).limit(1),
+          // "이번 주" is looked up by the real current week's date range, not
+          // just "whichever curation row was created most recently" — that
+          // way it always means the actual calendar week containing today.
+          supabase.from("weekly_curations").select("id, week_start, week_end").eq("week_start", weekStart).maybeSingle(),
         ]);
       if (bookErr) throw bookErr;
       if (sessErr) throw sessErr;
@@ -53,16 +59,21 @@ export function LibraryProvider({ children }) {
         });
       });
 
-      const curation = curationRows?.[0];
-      const weekly = curation?.weekly_curation_books
-        ? [...curation.weekly_curation_books].sort((a, b) => a.order - b.order).map((w) => w.book_id)
-        : [];
+      let weekly = [];
+      if (curationRow) {
+        const { data: linkRows, error: linkErr } = await supabase.from("weekly_curation_books").select("book_id, order").eq("curation_id", curationRow.id).order("order");
+        if (linkErr) throw linkErr;
+        weekly = (linkRows || []).map((l) => l.book_id);
+      }
 
       setBooks(bookRows || []);
       setSessionsByBook(sBy);
       setRecordsByBook(rBy);
       setWeeklyBookIds(weekly);
-      setWeekLabel(curation ? `${formatDate(curation.week_start)} — ${formatDate(curation.week_end)}` : "");
+      // Show the real current week's date range even before any curation
+      // row exists yet — it gets created automatically the first time a
+      // book is added (see /api/books/add).
+      setWeekLabel(`${formatDate(weekStart)} — ${formatDate(weekEnd)}`);
     } catch (e) {
       setError(e.message || String(e));
     }
@@ -104,25 +115,28 @@ export function LibraryProvider({ children }) {
     return { addedCount: (newBooks?.length || 0) + (linkedExistingIds?.length || 0), newIds: (newBooks || []).map((b) => b.id) };
   }, []);
 
-  const addRecord = useCallback(async ({ bookId, sessionId, type, content }) => {
-    const { record } = await bookAdapters.addRecord({ bookId, sessionId, type, content });
+  const addRecord = useCallback(async ({ bookId, sessionId, type, content, imageUrl }) => {
+    const { record } = await bookAdapters.addRecord({ bookId, sessionId, type, content, imageUrl });
     setRecordsByBook((prev) => ({
       ...prev,
       [bookId]: [
         ...(prev[bookId] || []),
-        { id: record.id, bookId: record.book_id, sessionId: record.reading_session_id, type: record.type, content: record.content, date: formatDate(record.created_at) },
+        { id: record.id, bookId: record.book_id, sessionId: record.reading_session_id, type: record.type, content: record.content, imageUrl: record.image_url, date: formatDate(record.created_at) },
       ],
     }));
     return record;
   }, []);
 
-  const addReadingDate = useCallback(async (bookId) => {
-    const { session } = await bookAdapters.addReadingSession(bookId);
+  const addReadingDate = useCallback(async (bookId, date) => {
+    const { sessions } = await bookAdapters.addReadingSession(bookId, date);
+    // The server may have renumbered other sessions too (a past date can
+    // slot in before an existing one), so replace the whole list rather
+    // than just appending.
     setSessionsByBook((prev) => ({
       ...prev,
-      [bookId]: [...(prev[bookId] || []), { id: session.id, date: formatDate(session.read_date), number: session.read_number }],
+      [bookId]: (sessions || []).map((s) => ({ id: s.id, date: formatDate(s.read_date), number: s.read_number })),
     }));
-    return session;
+    return sessions;
   }, []);
 
   const updateBook = useCallback(async (bookId, { title, author }) => {

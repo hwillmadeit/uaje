@@ -12,7 +12,12 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
   const sessions = sessionsOf(bookId);
   const records = recordsOf(bookId);
   const actionRecords = records.filter((r) => r.type === "action" || r.type === "photo");
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [pickedDate, setPickedDate] = useState(todayStr);
   const [addingDate, setAddingDate] = useState(false);
+  const [addDateError, setAddDateError] = useState("");
 
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -26,12 +31,20 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
 
   if (!book) return null;
 
-  async function handleAddReadDate() {
+  function openDatePicker() {
+    setPickedDate(todayStr);
+    setAddDateError("");
+    setDatePickerOpen(true);
+  }
+
+  async function handleConfirmReadDate() {
     setAddingDate(true);
+    setAddDateError("");
     try {
-      await addReadingDate(bookId);
+      await addReadingDate(bookId, pickedDate);
+      setDatePickerOpen(false);
     } catch (e) {
-      // Non-fatal — a calm inline retry is enough here.
+      setAddDateError("추가하는 중 문제가 생겼어요. 다시 시도해볼까요?");
     }
     setAddingDate(false);
   }
@@ -168,27 +181,37 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
         {sessions.length === 0 ? (
           <div style={{ marginTop: 22, padding: "18px 16px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", fontSize: 12.5, color: "var(--text-secondary)", textAlign: "center" }}>
             아직 읽지 않은 책이에요. 다 읽으면 날짜를 남겨보세요.
-            <div style={{ marginTop: 12 }}>
-              <button
-                onClick={handleAddReadDate}
-                disabled={addingDate}
-                className="uaje-tap"
-                style={{ fontSize: 12.5, color: "var(--dusty-blue)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "7px 16px", background: "none", cursor: "pointer" }}
-              >
-                {addingDate ? "추가하는 중..." : "읽은 날 추가"}
-              </button>
-            </div>
+            {datePickerOpen ? (
+              <ReadDatePicker value={pickedDate} onChange={setPickedDate} onCancel={() => setDatePickerOpen(false)} onConfirm={handleConfirmReadDate} busy={addingDate} error={addDateError} max={todayStr} />
+            ) : (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  onClick={openDatePicker}
+                  className="uaje-tap"
+                  style={{ fontSize: 12.5, color: "var(--dusty-blue)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "7px 16px", background: "none", cursor: "pointer" }}
+                >
+                  읽은 날 추가
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ marginTop: 30 }}>
             <SectionLabel
               label="읽은 기록"
               right={
-                <button onClick={handleAddReadDate} disabled={addingDate} className="uaje-tap" style={{ fontSize: 11, color: "var(--dusty-blue)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                  {addingDate ? "추가하는 중..." : "+ 다시 읽었어요"}
-                </button>
+                !datePickerOpen && (
+                  <button onClick={openDatePicker} className="uaje-tap" style={{ fontSize: 11, color: "var(--dusty-blue)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    + 다시 읽었어요
+                  </button>
+                )
               }
             />
+            {datePickerOpen && (
+              <div style={{ marginBottom: 18, padding: "14px 16px", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)" }}>
+                <ReadDatePicker value={pickedDate} onChange={setPickedDate} onCancel={() => setDatePickerOpen(false)} onConfirm={handleConfirmReadDate} busy={addingDate} error={addDateError} max={todayStr} />
+              </div>
+            )}
             <div style={{ position: "relative", paddingLeft: 16 }}>
               <div style={{ position: "absolute", left: 3, top: 4, bottom: 4, width: 1, background: "var(--border-strong)" }} />
               {[...sessions].reverse().map((s) => {
@@ -248,3 +271,32 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
     </div>
   );
 }
+
+function ReadDatePicker({ value, onChange, onCancel, onConfirm, busy, error, max }) {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <input
+        type="date"
+        value={value}
+        max={max}
+        onChange={(e) => onChange(e.target.value)}
+        style={{ width: "100%", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "9px 10px", fontSize: 13, background: "var(--surface)", color: "var(--text-primary)", outline: "none", fontFamily: "var(--sans)" }}
+      />
+      {error && <div style={{ fontSize: 11, color: "var(--terracotta-deep)", marginTop: 8 }}>{error}</div>}
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+        <button onClick={onCancel} className="uaje-tap" style={{ flex: 1, background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "9px 0", fontSize: 12, color: "var(--text-secondary)", cursor: "pointer" }}>
+          취소
+        </button>
+        <button
+          onClick={onConfirm}
+          disabled={!value || busy}
+          className="uaje-tap"
+          style={{ flex: 1, background: "var(--terracotta)", border: "none", borderRadius: "var(--radius-sm)", padding: "9px 0", fontSize: 12, fontWeight: 600, color: "#FBF8F0", cursor: "pointer" }}
+        >
+          {busy ? "추가하는 중..." : "추가"}
+        </button>
+      </div>
+    </div>
+  );
+}
+

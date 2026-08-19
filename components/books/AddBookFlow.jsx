@@ -6,7 +6,7 @@ import { Serif, BackHeader } from "@/components/layout/Primitives";
 import { useLibrary } from "@/lib/LibraryContext";
 import { bookAdapters } from "@/lib/bookAdapters";
 import { resolveDetections } from "@/lib/resolveDetections";
-import { warpQuadToRect } from "@/lib/perspectiveCrop";
+import { warpQuadToRect, trimMarginPercent } from "@/lib/perspectiveCrop";
 import { resizeImageForVision } from "@/lib/resizeImage";
 import { STATUS_META } from "@/lib/constants";
 
@@ -349,6 +349,16 @@ export default function AddBookFlow({ onClose }) {
     setManualCoverBlob(null);
     setManualCoverPreviewUrl(null);
     setManualCoverMsg("");
+  }
+
+  // Manual escape hatch — the auto-detected quad usually gets close, but
+  // isn't always pixel-perfect. Each tap trims a bit more off every edge.
+  async function trimManualCoverMore() {
+    if (!manualCoverBlob) return;
+    const trimmed = await trimMarginPercent(manualCoverBlob, 0.06);
+    if (manualCoverPreviewUrl) URL.revokeObjectURL(manualCoverPreviewUrl);
+    setManualCoverBlob(trimmed);
+    setManualCoverPreviewUrl(URL.createObjectURL(trimmed));
   }
 
   function resetManualForm() {
@@ -713,9 +723,14 @@ export default function AddBookFlow({ onClose }) {
                 <img src={manualCoverPreviewUrl} alt="표지 미리보기" style={{ width: 66, height: 92, objectFit: "cover", borderRadius: "3px 8px 8px 3px", boxShadow: "var(--shadow-book)", border: "1px solid rgba(0,0,0,0.06)" }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: "var(--sage)", marginBottom: 4 }}>표지를 잘라냈어요</div>
-                  <button onClick={clearManualCover} className="uaje-tap" style={{ fontSize: 11.5, color: "var(--text-muted)", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "6px 12px", cursor: "pointer" }}>
-                    다시 찍기
-                  </button>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={clearManualCover} className="uaje-tap" style={{ fontSize: 11.5, color: "var(--text-muted)", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "6px 10px", cursor: "pointer" }}>
+                      다시 찍기
+                    </button>
+                    <button onClick={trimManualCoverMore} className="uaje-tap" style={{ fontSize: 11.5, color: "var(--dusty-blue)", background: "none", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "6px 10px", cursor: "pointer" }}>
+                      여백 더 잘라내기
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (

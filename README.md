@@ -84,13 +84,12 @@ npm run dev
 | 이번 주 책 / 책꽂이 / 책 상세 / 기록 / 아카이브 | ✅ 실제 Supabase 데이터로 동작 |
 | "제목으로 찾기" (책 검색) | ✅ 실제 동작 — 우리 서재(Supabase) 우선 검색 + 알라딘(국내 출판사/브랜드 도서에 강함, `ALADIN_TTB_KEY` 설정 시) + Google Books API(키 없이도 동작, 국제 도서 위주) |
 | "직접 입력" | ✅ 실제 Supabase insert. 표지 사진을 찍으면 제목/저자를 vision으로 자동 채우고, 표지의 네 꼭짓점을 원근 보정해서 반듯하게 잘라 Supabase Storage에 업로드합니다. 자동으로 읽은 제목이 그림체 폰트 때문에 틀렸을 수 있어 "검색해서 확인하기"로 실제 도서 DB와 대조할 수 있습니다 (`ANTHROPIC_API_KEY` 설정 + `supabase/storage.sql` 실행 필요, 둘 다 없어도 텍스트만으로 등록 가능) |
-| 책 등록 → 이번 주 책 / 책꽂이 반영 | ✅ 실제 동작, 다시 촬영한 책은 새 책을 만들지 않고 기존 책에 읽기 세션만 추가 |
+| 책 등록 → 이번 주 책 / 책꽂이 반영 | ✅ 실제 동작, 다시 촬영한 책은 새 책을 만들지 않고 기존 책에 읽기 세션만 추가. "이번 주"는 실제 오늘이 포함된 달력 주(월~일) 기준으로 판단하고, 없으면 자동으로 만듭니다 |
 | 책 수정 / 삭제 (책 상세 화면) | ✅ 실제 Supabase update/delete. 삭제하면 그 책의 기록·읽기 세션도 함께 삭제됩니다 (DB의 ON DELETE CASCADE) |
-| 기록 작성 ("기록 저장하기") | ✅ 실제 Supabase insert (텍스트만 — 사진 업로드는 아래 참고) |
-| "읽은 날 추가" / "다시 읽었어요" | ✅ 실제 reading_sessions insert |
+| "읽은 날 추가" / "다시 읽었어요" | ✅ 실제 reading_sessions insert, 날짜를 직접 골라서 추가 가능. 과거 날짜를 넣으면 기존 기록들과 순서를 다시 계산해서 "첫 번째/두 번째 읽음" 표시가 항상 날짜순으로 맞습니다 |
+| 기록 작성 ("기록 저장하기") | ✅ 실제 Supabase insert. "그림" 기록은 앱 안에서 직접 손그림을 그리거나(색상 8개·굵기 3단계·지우개) 사진을 찍어 올릴 수 있고, 둘 다 Supabase Storage에 실제로 업로드됩니다 |
 | "이미지로 저장" (선생님 공유 카드) | ✅ 실제 PNG 생성 (`html-to-image`) 후 다운로드 |
 | "여러 권 촬영하기" 책 인식 (vision) | ⚙️ `ANTHROPIC_API_KEY` + `ANTHROPIC_VISION_MODEL` 설정 시 실제 Claude vision 호출. 설정 안 하면 가짜 인식 결과를 보여주는 대신 "책 인식 기능이 아직 연결되지 않았어요" 안내와 함께 제목 검색/직접 입력으로 자연스럽게 넘어갑니다. |
-| 기록(그림/사진)의 실제 이미지 업로드 | 🚧 TODO — 아래 "다음 단계" 참고 (책 표지 업로드와는 별개입니다) |
 
 ### "직접 입력"은 여러 권을 한 번에 등록할 수 있어요
 
@@ -121,6 +120,11 @@ vision이 표지에서 제목을 읽어도, 손글씨체·캘리그래피 같은
    원근 변환이 없어서 사각형을 삼각형 두 개로 나눠 각각 어파인 변환하는
    방식으로 근사합니다 — 완벽한 원근 변환은 아니지만 책 표지처럼 평평한
    물체에는 충분히 정확합니다.)
+   - vision 모델은 표지 경계를 살짝 넉넉하게 잡는 경향이 있어서,
+     `/api/books/cover`가 받은 네 꼭짓점을 중심 쪽으로 3.5% 자동으로
+     당겨서 여백을 미리 보정합니다.
+   - 그래도 여백이 남으면, 표지 미리보기의 **"여백 더 잘라내기"** 버튼으로
+     6%씩 추가로 다듬을 수 있습니다 (`trimMarginPercent`, 여러 번 눌러도 됨).
 3. `POST /api/books/cover-upload` — 잘라낸 이미지를 Supabase Storage
    `book-covers` 버킷에 올리고 공개 URL을 돌려줍니다 (`supabase/storage.sql`
    로 버킷을 먼저 만들어야 합니다).
@@ -130,6 +134,20 @@ vision이 표지에서 제목을 읽어도, 손글씨체·캘리그래피 같은
 `ANTHROPIC_API_KEY`가 없으면 이 단계 전체를 건너뛰고 "표지 자동 인식
 기능이 아직 연결되지 않았어요" 안내만 뜨며, 제목/저자를 직접 타이핑해서
 그대로 등록할 수 있습니다 (표지 없이 placeholder로 등록).
+
+### 그림 기록 — 앱 안에서 직접 그리기
+
+"기록 작성"에서 "그림"을 고르면 기본으로 캔버스가 뜹니다 (`DrawingPad.jsx`).
+색상 8개, 굵기 3단계, 지우개, 전체 지우기를 지원하고 마우스/터치/펜 모두
+Pointer Events로 동일하게 동작합니다. 저장하면 캔버스를 PNG로 내보내
+`POST /api/records/image`로 `record-images` 버킷에 업로드하고, 그 URL이
+`records.image_url`에 저장됩니다. "사진으로 올리기"로 전환하면 기존처럼
+실물 그림이나 활동 사진을 찍어 올릴 수 있고, 이 경로도 이제 실제로
+업로드됩니다 (예전엔 로컬 미리보기만 되던 TODO였는데 이번에 완성했습니다).
+
+**중요:** `record-images` 버킷은 `supabase/storage.sql`에 새로 추가됐습니다.
+이미 한 번 실행하셨더라도 **다시 한 번 실행**해주세요 — `on conflict do
+nothing`으로 안전하게 되어 있어서 기존 `book-covers` 버킷에는 영향 없습니다.
 
 ## 1. 폴더 구조
 
@@ -148,18 +166,19 @@ app/
     books/cover-upload/      POST — 잘라낸 표지 이미지를 Supabase Storage에 업로드 (로그인 필요 + 시간당 30회 제한)
     books/[id]/               PATCH/DELETE — 책 정보 수정 / 삭제 (로그인 필요, 삭제 시 기록·세션도 함께 삭제)
     books/search/           GET  — 서재 검색 + 알라딘 + Google Books 검색 (로그인 필요 + 분당 60회 제한)
-    books/add/               POST — 신규 책 등록 / 중복 책은 세션만 추가 / 이번 주 큐레이션 연결 (로그인 필요)
-    records/                  POST — 기록 추가 (로그인 필요)
-    reading-sessions/         POST — 읽은 날 추가 (로그인 필요)
+    books/add/               POST — 신규 책 등록 / 중복 책은 세션만 추가 / 이번 주 큐레이션 연결(자동 생성) (로그인 필요)
+    records/                  POST — 기록 추가, image_url 저장 가능 (로그인 필요)
+    records/image/             POST — 그림/사진 이미지를 Supabase Storage에 업로드 (로그인 필요 + 시간당 60회 제한)
+    reading-sessions/         POST — 읽은 날 추가, 날짜 직접 지정 가능 + 전체 세션 재정렬 (로그인 필요)
 
 components/
   brand/SplashScreen.jsx     오프닝 화면 (로고 타이포그래피 + 낙서 심볼)
   layout/                     BottomNav, 공통 프리미티브(BookCover, 헤더 등)
   books/                      BookShelf(실제 DOM 책장) + AddBookFlow(촬영→인식→등록 전체 flow)
-  records/                    RecordCard, RecordComposer(기록 작성), RecordTimeline(기록 탭)
+  records/                    RecordCard, RecordComposer(기록 작성 — 그림판 포함), DrawingPad(캔버스 그림판), RecordTimeline(기록 탭)
   sharing/ShareCard.jsx       선생님 공유 카드 + PNG 내보내기
   archive/Archive.jsx         나의 아카이브
-  screens/                    Home/Shelf/Detail/Settings 화면 (Settings에 로그아웃 포함)
+  screens/                    Home/Shelf/Detail(수정·삭제·날짜선택 포함)/Settings 화면
   UajeApp.jsx                 화면 전환 + 스플래시 타이밍을 담당하는 루트 셸
 
 lib/
@@ -167,12 +186,15 @@ lib/
   supabaseServer.js           supabaseServer(): service role 클라이언트(쓰기용, 관리자 권한)
                                getRouteUser(): 요청 쿠키에서 현재 로그인 사용자를 읽음 — 모든 쓰기 라우트가 제일 먼저 호출
   rateLimit.js                간단한 in-memory 레이트 리밋 (아래 0번 참고)
+  weekRange.js                  실제 오늘이 포함된 달력 주(월~일) 계산 — "이번 주"의 기준을 여기 한 곳으로 통일
   LibraryContext.jsx          Supabase에서 불러온 데이터를 React state로 들고 있는 Context.
-                               books / sessionsOf(id) / recordsOf(id) / weeklyBookIds 등을 제공.
+                               books / sessionsOf(id) / recordsOf(id) / weeklyBookIds / updateBook / deleteBook 등을 제공.
   bookAdapters.js             identifyBooksFromImage / searchBook / saveBooks / addRecord / addReadingSession /
-                               identifyCover / uploadCover — 전부 fetch()로 /api/* 라우트를 호출, 401을 받으면 /login으로 이동
+                               identifyCover / uploadCover / updateBook / deleteBook / uploadRecordImage
+                               — 전부 fetch()로 /api/* 라우트를 호출, 401을 받으면 /login으로 이동
   visionClient.js              /api/books/identify 와 /api/books/cover가 함께 쓰는 Anthropic 호출 헬퍼
-  perspectiveCrop.js            표지 네 꼭짓점을 반듯한 사각형으로 펴서 잘라내는 원근 보정 크롭 (canvas 삼각형 어파인 변환)
+  perspectiveCrop.js            표지 네 꼭짓점을 반듯한 사각형으로 펴서 잘라내는 원근 보정 크롭 (canvas 삼각형 어파인 변환) +
+                               trimMarginPercent (남은 여백을 수동으로 더 잘라내는 보조 함수)
   resizeImage.js                 vision에 보내기 전 사진을 적당한 크기로 줄이는 헬퍼 (용량 초과 400 에러 방지 + 비용 절감)
   resolveDetections.js        vision이 준 제목 후보를 searchBook으로 재검증하는 파이프라인
   constants.js                RECORD_TYPES, 상태 라벨 등 순수 상수/헬퍼
@@ -207,11 +229,6 @@ import하지 마세요.
 
 ## 4. 다음 단계 (TODO로 남겨둔 것)
 
-- **그림/사진 실제 업로드**: 지금은 `RecordComposer`의 파일 input이 로컬
-  선택만 하고 실제로 어디에 올리지는 않습니다. Supabase Storage 버킷을
-  하나 만들고(`book-records` 등), 업로드 후 받은 public URL을
-  `records.image_url`에 저장하도록 `RecordComposer.jsx`의 해당 `<input>`
-  핸들러와 `/api/records`를 확장하면 됩니다.
 - **인증/가구 단위 분리**: 지금 스키마는 가구(가정) 구분이 없는 단일
   라이브러리 구조입니다. 여러 가정이 함께 쓰려면 `households` 테이블 +
   `auth.uid()` 기반 RLS로 확장하세요.
@@ -223,6 +240,10 @@ import하지 마세요.
   로 재설정 메일을 보내고, `/auth/callback`에서 받은 세션으로 새 비밀번호를
   입력하는 화면을 하나 추가하면 됩니다. 지금은 비밀번호를 잊으면 Supabase
   대시보드에서 수동으로 사용자 비밀번호를 재설정해줘야 합니다.
+- **표지 원근 보정의 한계**: 삼각형 두 개로 근사하는 방식이라 완벽한
+  3D 원근 변환은 아닙니다. 아주 심하게 비스듬한 사진에서는 여전히
+  자연스럽지 않을 수 있어요 — 이럴 땐 "다시 찍기"로 좀 더 정면에서
+  다시 촬영하는 게 가장 빠른 해결책입니다.
 
 ## 5. 확인한 것
 

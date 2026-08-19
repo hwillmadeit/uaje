@@ -1,4 +1,5 @@
 import { supabaseServer, getRouteUser } from "@/lib/supabaseServer";
+import { currentWeekRange } from "@/lib/weekRange";
 
 export async function POST(req) {
   const user = await getRouteUser();
@@ -48,8 +49,23 @@ export async function POST(req) {
       }
     }
 
-    // Link everything into the current (most recent) weekly curation.
-    const { data: curation } = await supabase.from("weekly_curations").select("id").order("week_start", { ascending: false }).limit(1).single();
+    // Link everything into *this real calendar week's* curation — find it
+    // by actual date range, and create it if it doesn't exist yet. (The
+    // previous version picked "whichever curation row has the latest
+    // week_start", which silently linked nothing if no row existed at all,
+    // and never rolled over to a new week on its own.)
+    const { weekStart, weekEnd } = currentWeekRange();
+    let { data: curation } = await supabase.from("weekly_curations").select("id").eq("week_start", weekStart).maybeSingle();
+    if (!curation) {
+      const { data: created, error: curErr } = await supabase
+        .from("weekly_curations")
+        .insert({ week_start: weekStart, week_end: weekEnd, title: "이번 주 책" })
+        .select("id")
+        .single();
+      if (curErr) throw curErr;
+      curation = created;
+    }
+
     const allBookIds = [...newBooks.map((b) => b.id), ...linkedExistingIds];
     if (curation && allBookIds.length > 0) {
       const { data: existingLinks } = await supabase.from("weekly_curation_books").select("book_id, order").eq("curation_id", curation.id);
