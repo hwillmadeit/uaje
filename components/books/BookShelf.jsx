@@ -35,7 +35,7 @@ function chunk(arr, size) {
   return out;
 }
 
-function BookItem({ book, openBook, isNew }) {
+export function BookItem({ book, openBook, isNew }) {
   const { sessionsOf } = useLibrary();
   const readCount = sessionsOf(book.id).length;
   const rerun = readCount > 1;

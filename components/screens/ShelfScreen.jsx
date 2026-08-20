@@ -2,8 +2,9 @@
 
 import React, { useState, useMemo } from "react";
 import { Plus } from "lucide-react";
-import { AppHeader } from "@/components/layout/Primitives";
+import { AppHeader, SectionLabel } from "@/components/layout/Primitives";
 import { BookShelf } from "@/components/books/BookShelf";
+import { PhotoBookShelf, PHOTO_SHELF_CAPACITY } from "@/components/books/PhotoBookShelf";
 import { useLibrary } from "@/lib/LibraryContext";
 
 export default function ShelfScreen({ openBook, onAddBook }) {
@@ -17,6 +18,13 @@ export default function ShelfScreen({ openBook, onAddBook }) {
   }, [books]);
 
   const shownBooks = activeTag ? books.filter((b) => (b.tags || []).includes(activeTag)) : books;
+
+  // Newest first, same convention as the plain shelf. The first ~16 fit
+  // the photo bookshelf's three compartments; anything beyond that
+  // continues below on the plain wooden shelf so nothing gets lost.
+  const sorted = useMemo(() => [...shownBooks].sort((a, b) => b.id - a.id), [shownBooks]);
+  const photoBooks = sorted.slice(0, PHOTO_SHELF_CAPACITY);
+  const restBooks = sorted.slice(PHOTO_SHELF_CAPACITY);
 
   return (
     <div>
@@ -66,7 +74,15 @@ export default function ShelfScreen({ openBook, onAddBook }) {
         {activeTag && shownBooks.length === 0 ? (
           <div style={{ textAlign: "center", fontSize: 12.5, color: "var(--text-muted)", padding: "30px 0" }}>&ldquo;{activeTag}&rdquo; 태그가 붙은 책이 아직 없어요.</div>
         ) : (
-          <BookShelf books={shownBooks} openBook={openBook} newIds={newIds} />
+          <>
+            <PhotoBookShelf books={photoBooks} openBook={openBook} newIds={newIds} />
+            {restBooks.length > 0 && (
+              <div style={{ marginTop: 22 }}>
+                <SectionLabel label="더 있어요" />
+                <BookShelf books={restBooks} openBook={openBook} newIds={newIds} />
+              </div>
+            )}
+          </>
         )}
         <button
           onClick={onAddBook}
