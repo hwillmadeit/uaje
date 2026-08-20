@@ -137,28 +137,26 @@ export default function HomeScreen({ openBook, onOpenAddFlow }) {
 
   return (
     <div>
-      <div style={{ padding: "26px 22px 4px" }}>
-        <div style={{ background: "var(--surface-soft)", border: "1px solid var(--border)", borderRadius: "var(--radius-section)", padding: "24px 22px 26px", boxShadow: "var(--shadow-soft)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-            <Serif as="div" style={{ fontSize: 18.5, fontWeight: 600, color: "var(--text-primary)" }}>
-              이번 주 책
-            </Serif>
-            <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{weekLabel}</span>
-          </div>
-          <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 7, lineHeight: 1.6 }}>선생님이 이번 주에 골라주신 책이에요.</p>
-
-          <div style={{ marginTop: 18 }}>
-            <PhotoWeeklyShelf books={weeklyBooks} openBook={openBook} newIds={newIds} />
-          </div>
-
-          <button
-            onClick={onOpenAddFlow}
-            className="uaje-tap"
-            style={{ marginTop: 18, width: "100%", border: "1px dashed var(--border-strong)", borderRadius: "var(--radius-md)", padding: "12px 16px", textAlign: "center", color: "var(--text-secondary)", fontSize: 12, background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}
-          >
-            <Plus size={13} /> 책 추가
-          </button>
+      <div style={{ padding: "26px 22px 14px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <Serif as="div" style={{ fontSize: 18.5, fontWeight: 600, color: "var(--text-primary)" }}>
+            이번 주 책
+          </Serif>
+          <span style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{weekLabel}</span>
         </div>
+        <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 7, lineHeight: 1.6 }}>선생님이 이번 주에 골라주신 책이에요.</p>
+      </div>
+
+      <div style={{ padding: "0 22px 4px" }}>
+        <PhotoWeeklyShelf books={weeklyBooks} openBook={openBook} newIds={newIds} />
+
+        <button
+          onClick={onOpenAddFlow}
+          className="uaje-tap"
+          style={{ marginTop: 18, width: "100%", border: "1px dashed var(--border-strong)", borderRadius: "var(--radius-md)", padding: "12px 16px", textAlign: "center", color: "var(--text-secondary)", fontSize: 12, background: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 7 }}
+        >
+          <Plus size={13} /> 책 추가
+        </button>
       </div>
 
       <div style={{ padding: "28px 22px 36px" }}>
