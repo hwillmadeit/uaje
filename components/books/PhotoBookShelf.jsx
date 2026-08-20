@@ -23,6 +23,78 @@ const ROWS = [
 
 export const PHOTO_SHELF_CAPACITY = ROWS.reduce((sum, r) => sum + r.maxCount, 0);
 
+// "이번 주 책" only ever holds ~5 books, so using the full three-shelf image
+// there would be a lot of empty cabinet for a small widget. This crops the
+// same image down to just the top compartment (plus the little plant/vase
+// sitting on the case above it) by only showing the first ~44% of the
+// image's height and scaling the row geometry to match.
+const WEEKLY_CROP_FRACTION = 0.44;
+const WEEKLY_ASPECT = 1100 / (1430 * WEEKLY_CROP_FRACTION);
+const WEEKLY_ROW = {
+  top: (ROWS[0].top / (WEEKLY_CROP_FRACTION * 100)) * 100,
+  height: (ROWS[0].height / (WEEKLY_CROP_FRACTION * 100)) * 100,
+  left: ROWS[0].left,
+  width: ROWS[0].width,
+  bookWidthPct: ROWS[0].bookWidthPct,
+  maxCount: ROWS[0].maxCount,
+};
+
+export function PhotoWeeklyShelf({ books, openBook, newIds }) {
+  const shown = books.slice(0, WEEKLY_ROW.maxCount);
+  return (
+    <div style={{ position: "relative", width: "100%", aspectRatio: WEEKLY_ASPECT, borderRadius: "var(--radius-lg)", overflow: "hidden", boxShadow: "var(--shadow-soft)" }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/images/bookshelf-frame.jpg"
+        alt=""
+        style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "auto", display: "block" }}
+      />
+
+      {shown.length === 0 && (
+        <div
+          style={{
+            position: "absolute",
+            top: `${WEEKLY_ROW.top}%`,
+            left: `${WEEKLY_ROW.left}%`,
+            width: `${WEEKLY_ROW.width}%`,
+            height: `${WEEKLY_ROW.height}%`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            fontSize: 12,
+            color: "var(--text-secondary)",
+            lineHeight: 1.6,
+            padding: "0 8%",
+          }}
+        >
+          이번 주에 등록된 책이 아직 없어요.
+        </div>
+      )}
+
+      <div
+        style={{
+          position: "absolute",
+          top: `${WEEKLY_ROW.top}%`,
+          left: `${WEEKLY_ROW.left}%`,
+          width: `${WEEKLY_ROW.width}%`,
+          height: `${WEEKLY_ROW.height}%`,
+          display: "flex",
+          alignItems: "flex-end",
+          justifyContent: "center",
+          gap: "1.8%",
+        }}
+      >
+        {shown.map((b) => (
+          <div key={b.id} style={{ flex: `0 0 ${WEEKLY_ROW.bookWidthPct}%` }}>
+            <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PhotoBookShelf({ books, openBook, newIds }) {
   let cursor = 0;
   const rowBooks = ROWS.map((row) => {
@@ -70,8 +142,8 @@ export function PhotoBookShelf({ books, openBook, newIds }) {
             height: `${row.height}%`,
             display: "flex",
             alignItems: "flex-end",
-            justifyContent: "flex-start",
-            gap: "1.5%",
+            justifyContent: "center",
+            gap: "1.8%",
           }}
         >
           {rowBooks[i].map((b) => (

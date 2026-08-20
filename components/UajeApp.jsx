@@ -85,7 +85,7 @@ export default function UajeApp() {
   return (
     <div
       className="uaje-shell"
-      style={{ fontFamily: "var(--sans)", margin: "0 auto", height: "100vh", background: "var(--bg)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 0 40px rgba(0,0,0,0.05)", position: "relative" }}
+      style={{ fontFamily: "var(--sans)", margin: "0 auto", background: "var(--bg)", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 0 40px rgba(0,0,0,0.05)", position: "relative" }}
     >
       <div className="uaje-scroll" style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
         {content}

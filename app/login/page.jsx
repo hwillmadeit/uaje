@@ -61,7 +61,6 @@ export default function LoginPage() {
       style={{
         fontFamily: "var(--sans)",
         margin: "0 auto",
-        height: "100vh",
         background: "var(--bg)",
         display: "flex",
         flexDirection: "column",

@@ -156,6 +156,12 @@ body {
 
 .uaje-shell {
   max-width: 460px;
+  /* 100vh doesn't track a mobile browser's address bar showing/hiding, so
+     the bottom nav can end up clipped below the visible area. 100dvh
+     (dynamic viewport height) tracks the real visible height instead —
+     browsers that don't support it just keep using the 100vh line above. */
+  height: 100vh;
+  height: 100dvh;
 }
 
 .uaje-weekly-grid {

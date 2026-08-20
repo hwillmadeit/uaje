@@ -3,9 +3,15 @@
 import React from "react";
 import { Plus } from "lucide-react";
 import { Serif, SectionLabel } from "@/components/layout/Primitives";
-import { WeeklyBooks } from "@/components/books/BookShelf";
+import { PhotoWeeklyShelf } from "@/components/books/PhotoBookShelf";
 import { RT } from "@/lib/constants";
 import { useLibrary } from "@/lib/LibraryContext";
+
+// Small alternating tilt + a "washi tape" strip at the top — reads as a
+// sticky note pinned up, not another bordered card. Kept subtle (matches
+// the ±0.3–2° convention used everywhere else book/paper elements tilt).
+const NOTE_ROTATIONS = [-1.5, 1, -0.8, 1.4, -1.2, 0.8];
+const TAPE_COLORS = ["var(--terracotta)", "var(--sage)", "var(--dusty-blue)"];
 
 function RecentRecordStrip({ openBook }) {
   const { books, recordsOf } = useLibrary();
@@ -16,24 +22,66 @@ function RecentRecordStrip({ openBook }) {
   }
 
   return (
-    <div className="uaje-scroll" style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
-      {all.map((r) => {
+    <div className="uaje-scroll" style={{ display: "flex", gap: 16, overflowX: "auto", padding: "6px 4px 10px" }}>
+      {all.map((r, i) => {
         const book = books.find((b) => b.id === r.bookId);
         const meta = RT[r.type];
         if (!book || !meta) return null;
+        const rotation = NOTE_ROTATIONS[i % NOTE_ROTATIONS.length];
+        const tape = TAPE_COLORS[i % TAPE_COLORS.length];
         return (
           <button
             key={r.id}
             onClick={() => openBook(r.bookId)}
             className="uaje-tap"
-            style={{ flexShrink: 0, width: 154, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: 13, textAlign: "left", cursor: "pointer", boxShadow: "var(--shadow-soft)" }}
+            style={{
+              flexShrink: 0,
+              width: 148,
+              background: "#FEFCF6",
+              border: "1px solid var(--border)",
+              borderRadius: 4,
+              padding: "16px 13px 13px",
+              textAlign: "left",
+              cursor: "pointer",
+              boxShadow: "0 4px 10px rgba(80,60,40,0.14)",
+              transform: `rotate(${rotation}deg)`,
+              position: "relative",
+            }}
           >
+            <span
+              style={{
+                position: "absolute",
+                top: -8,
+                left: "50%",
+                transform: `translateX(-50%) rotate(${-rotation * 0.6}deg)`,
+                width: 34,
+                height: 14,
+                background: tape,
+                opacity: 0.55,
+                borderRadius: 2,
+                boxShadow: "0 1px 2px rgba(0,0,0,0.08)",
+              }}
+            />
             <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--terracotta)" }}>
-              <meta.Icon size={13} />
-              <span style={{ fontSize: 10.5, color: "var(--text-muted)" }}>{r.date}</span>
+              <meta.Icon size={12} />
+              <span style={{ fontSize: 10, color: "var(--text-muted)" }}>{r.date}</span>
             </div>
-            <div style={{ fontSize: 11.5, color: "var(--text-primary)", marginTop: 7, fontWeight: 500 }}>{book.title}</div>
-            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{r.content}</div>
+            <div style={{ fontSize: 11.5, color: "var(--text-primary)", marginTop: 7, fontWeight: 600 }}>{book.title}</div>
+            <Serif
+              as="div"
+              style={{
+                fontSize: 12,
+                color: "var(--text-secondary)",
+                marginTop: 5,
+                lineHeight: 1.55,
+                display: "-webkit-box",
+                WebkitLineClamp: 3,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {r.content}
+            </Serif>
           </button>
         );
       })}
@@ -42,7 +90,7 @@ function RecentRecordStrip({ openBook }) {
 }
 
 export default function HomeScreen({ openBook, onOpenAddFlow }) {
-  const { books, weeklyBookIds, weekLabel } = useLibrary();
+  const { books, weeklyBookIds, weekLabel, newIds } = useLibrary();
   const weeklyBooks = weeklyBookIds.map((id) => books.find((b) => b.id === id)).filter(Boolean);
   const isFirstRun = books.length === 0;
 
@@ -99,15 +147,9 @@ export default function HomeScreen({ openBook, onOpenAddFlow }) {
           </div>
           <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 7, lineHeight: 1.6 }}>선생님이 이번 주에 골라주신 책이에요.</p>
 
-          {weeklyBooks.length > 0 ? (
-            <div style={{ marginTop: 20 }}>
-              <WeeklyBooks books={weeklyBooks} openBook={openBook} />
-            </div>
-          ) : (
-            <div style={{ marginTop: 18, fontSize: 12, color: "var(--text-muted)", textAlign: "center", padding: "10px 0" }}>
-              이번 주에 등록된 책이 아직 없어요.
-            </div>
-          )}
+          <div style={{ marginTop: 18 }}>
+            <PhotoWeeklyShelf books={weeklyBooks} openBook={openBook} newIds={newIds} />
+          </div>
 
           <button
             onClick={onOpenAddFlow}
