@@ -49,6 +49,7 @@ export function BookItem({ book, openBook, isNew, fit = "cover", naturalRatio = 
         padding: 0,
         position: "relative",
         width: naturalRatio ? "auto" : "100%",
+        maxWidth: naturalRatio ? "100%" : undefined,
         height: naturalRatio ? "100%" : undefined,
         // Rotation reads as messy once books have differing natural
         // widths packed tightly together — the neat, upright grid in the

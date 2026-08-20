@@ -81,6 +81,9 @@ export function BookCover({
         style={{
           height: "100%",
           width: "auto",
+          maxWidth: "100%",
+          maxHeight: "100%",
+          objectFit: "contain",
           display: "block",
           borderRadius: 4,
           boxShadow: "var(--shadow-book)",
@@ -123,6 +126,7 @@ export function BookCover({
       className={className}
       style={{
         width: naturalRatio ? undefined : width,
+        maxWidth: naturalRatio ? "100%" : undefined,
         height: naturalRatio ? "100%" : aspectRatio ? undefined : height,
         aspectRatio: naturalRatio ? DEFAULT_BOOK_RATIO : aspectRatio || undefined,
         borderRadius: naturalRatio ? 4 : rounded ? "3px 8px 8px 3px" : 4,

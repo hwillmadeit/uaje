@@ -38,8 +38,8 @@ const rescale = (row) => ({
   bookWidthPct: row.bookWidthPct,
 });
 const WEEKLY_ROWS = [
-  { ...rescale(ROWS[0]), maxCount: 3 },
-  { ...rescale(ROWS[1]), maxCount: 2 },
+  { ...rescale(ROWS[0]), maxCount: 3, maxBookWidthPct: 30 },
+  { ...rescale(ROWS[1]), maxCount: 2, maxBookWidthPct: 44 },
 ];
 
 export function PhotoWeeklyShelf({ books, openBook, newIds }) {
@@ -90,11 +90,16 @@ export function PhotoWeeklyShelf({ books, openBook, newIds }) {
             alignItems: "flex-end",
             justifyContent: "center",
             gap: "1.8%",
+            overflow: "hidden",
           }}
         >
           {rowBooks[i].map((b) => (
-            <div key={b.id} style={{ flex: `0 0 ${row.bookWidthPct}%` }}>
-              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} fit="contain" />
+            // maxWidth is a hard cap so one unusually wide/tall-ratio cover
+            // can't push past the row and spill outside the shelf frame —
+            // it'll just shrink to fit instead (still full-shape, just
+            // narrower than its natural ratio would otherwise render).
+            <div key={b.id} style={{ height: "100%", maxWidth: `${row.maxBookWidthPct}%`, flexShrink: 0 }}>
+              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} naturalRatio />
             </div>
           ))}
         </div>
@@ -155,8 +160,8 @@ export function PhotoBookShelf({ books, openBook, newIds }) {
           }}
         >
           {rowBooks[i].map((b) => (
-            <div key={b.id} style={{ height: "100%", flexShrink: 0 }}>
-              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} naturalRatio />
+            <div key={b.id} style={{ flex: `0 0 ${row.bookWidthPct}%` }}>
+              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} />
             </div>
           ))}
         </div>
