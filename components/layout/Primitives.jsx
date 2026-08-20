@@ -39,6 +39,11 @@ export function StatusDot({ status }) {
 // Renders a real cover image when book.cover_image_url is set; otherwise
 // falls back to the editorial placeholder (title on a muted color field).
 // Never fabricates a "real cover" look for a book with no actual image.
+// A book-cover-like default ratio (roughly a typical picture book) used
+// for placeholders in naturalRatio mode — real photographed covers, once
+// uploaded, use their own true ratio instead of this.
+const DEFAULT_BOOK_RATIO = 0.7;
+
 export function BookCover({
   book,
   width = 92,
@@ -55,9 +60,36 @@ export function BookCover({
   // whole photo instead, for contexts (like the weekly widget) that want
   // to see the entire cover even if it leaves letterbox space.
   fit = "cover",
+  // When true, ignores `width`/`aspectRatio` entirely — height is fixed
+  // (from the parent) and width is intrinsic: a real cover renders at its
+  // own true proportions (a photographed book cropped to its actual
+  // shape, not stretched into a uniform spine box), and a placeholder
+  // uses DEFAULT_BOOK_RATIO. This is what makes books on a shelf line up
+  // at the same height with naturally differing widths, like real books.
+  naturalRatio = false,
 }) {
   const initials = (book.title || "").slice(0, 1);
   const hasImage = Boolean(book.cover_image_url || book.coverImageUrl);
+
+  if (hasImage && naturalRatio) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        className={className}
+        src={book.cover_image_url || book.coverImageUrl}
+        alt={book.title}
+        style={{
+          height: "100%",
+          width: "auto",
+          display: "block",
+          borderRadius: 4,
+          boxShadow: "var(--shadow-book)",
+          border: "1px solid rgba(0,0,0,0.05)",
+          flexShrink: 0,
+        }}
+      />
+    );
+  }
 
   if (hasImage) {
     return (
@@ -90,10 +122,10 @@ export function BookCover({
     <div
       className={className}
       style={{
-        width,
-        height: aspectRatio ? undefined : height,
-        aspectRatio: aspectRatio || undefined,
-        borderRadius: rounded ? "3px 8px 8px 3px" : 4,
+        width: naturalRatio ? undefined : width,
+        height: naturalRatio ? "100%" : aspectRatio ? undefined : height,
+        aspectRatio: naturalRatio ? DEFAULT_BOOK_RATIO : aspectRatio || undefined,
+        borderRadius: naturalRatio ? 4 : rounded ? "3px 8px 8px 3px" : 4,
         background: `linear-gradient(150deg, ${color}, ${color}D9)`,
         boxShadow: "var(--shadow-book)",
         border: "1px solid rgba(0,0,0,0.05)",

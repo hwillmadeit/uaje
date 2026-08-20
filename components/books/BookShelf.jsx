@@ -35,7 +35,7 @@ function chunk(arr, size) {
   return out;
 }
 
-export function BookItem({ book, openBook, isNew, fit = "cover" }) {
+export function BookItem({ book, openBook, isNew, fit = "cover", naturalRatio = false }) {
   const { sessionsOf } = useLibrary();
   const readCount = sessionsOf(book.id).length;
   const rerun = readCount > 1;
@@ -43,10 +43,31 @@ export function BookItem({ book, openBook, isNew, fit = "cover" }) {
     <button
       onClick={() => openBook(book.id)}
       className={`uaje-book uaje-tap ${isNew ? "uaje-book-in" : ""}`}
-      style={{ background: "none", border: "none", padding: 0, position: "relative", width: "100%", transform: `rotate(${book.rotation ?? 0}deg)` }}
+      style={{
+        background: "none",
+        border: "none",
+        padding: 0,
+        position: "relative",
+        width: naturalRatio ? "auto" : "100%",
+        height: naturalRatio ? "100%" : undefined,
+        // Rotation reads as messy once books have differing natural
+        // widths packed tightly together — the neat, upright grid in the
+        // reference has no tilt, so skip it in this mode.
+        transform: naturalRatio ? undefined : `rotate(${book.rotation ?? 0}deg)`,
+      }}
       aria-label={book.title}
     >
-      <BookCover book={book} width="100%" aspectRatio={BOOK_ASPECT} showAuthor={false} compact showInitials={false} titleLines={2} fit={fit} />
+      <BookCover
+        book={book}
+        width={naturalRatio ? undefined : "100%"}
+        aspectRatio={naturalRatio ? undefined : BOOK_ASPECT}
+        showAuthor={false}
+        compact={!naturalRatio}
+        showInitials={false}
+        titleLines={2}
+        fit={fit}
+        naturalRatio={naturalRatio}
+      />
       {rerun && (
         <span
           style={{

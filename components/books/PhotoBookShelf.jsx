@@ -155,8 +155,8 @@ export function PhotoBookShelf({ books, openBook, newIds }) {
           }}
         >
           {rowBooks[i].map((b) => (
-            <div key={b.id} style={{ flex: `0 0 ${row.bookWidthPct}%` }}>
-              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} />
+            <div key={b.id} style={{ height: "100%", flexShrink: 0 }}>
+              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} naturalRatio />
             </div>
           ))}
         </div>
