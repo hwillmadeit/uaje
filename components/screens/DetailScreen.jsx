@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
-import { Plus, Camera, Sprout, PenSquare, Trash2, ZoomIn } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Plus, Camera, Sprout, PenSquare, Trash2, ZoomIn, X } from "lucide-react";
 import { BackHeader, SectionLabel, Serif, BookCover } from "@/components/layout/Primitives";
 import ImageLightbox from "@/components/layout/ImageLightbox";
 import { RecordCard } from "@/components/records/RecordCard";
 import { useLibrary } from "@/lib/LibraryContext";
+import { SUGGESTED_GENRE_TAGS, SUGGESTED_THEME_TAGS } from "@/lib/constants";
 
-export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }) {
+export default function DetailScreen({ bookId, openBook, onBack, goRecordCreate, goShare }) {
   const { books, sessionsOf, recordsOf, addReadingDate, updateBook, deleteBook } = useLibrary();
   const book = books.find((b) => b.id === bookId);
   const sessions = sessionsOf(bookId);
@@ -25,12 +26,24 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editAuthor, setEditAuthor] = useState("");
+  const [editSeries, setEditSeries] = useState("");
+  const [editTags, setEditTags] = useState([]);
+  const [tagInput, setTagInput] = useState("");
   const [editBusy, setEditBusy] = useState(false);
   const [editError, setEditError] = useState("");
 
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+
+  const sameAuthorBooks = useMemo(
+    () => (book?.author ? books.filter((b) => b.id !== bookId && b.author === book.author) : []),
+    [books, book, bookId]
+  );
+  const sameSeriesBooks = useMemo(
+    () => (book?.series ? books.filter((b) => b.id !== bookId && b.series === book.series) : []),
+    [books, book, bookId]
+  );
 
   if (!book) return null;
 
@@ -55,8 +68,22 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
   function startEditing() {
     setEditTitle(book.title);
     setEditAuthor(book.author || "");
+    setEditSeries(book.series || "");
+    setEditTags(book.tags || []);
+    setTagInput("");
     setEditError("");
     setEditing(true);
+  }
+
+  function addTag(tag) {
+    const t = tag.trim();
+    if (!t || editTags.includes(t)) return;
+    setEditTags((prev) => [...prev, t]);
+    setTagInput("");
+  }
+
+  function removeTag(tag) {
+    setEditTags((prev) => prev.filter((t) => t !== tag));
   }
 
   async function handleSaveEdit() {
@@ -64,7 +91,7 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
     setEditBusy(true);
     setEditError("");
     try {
-      await updateBook(bookId, { title: editTitle.trim(), author: editAuthor.trim() || null });
+      await updateBook(bookId, { title: editTitle.trim(), author: editAuthor.trim() || null, series: editSeries.trim() || null, tags: editTags });
       setEditing(false);
     } catch (e) {
       setEditError("수정하는 중 문제가 생겼어요. 다시 시도해볼까요?");
@@ -119,6 +146,56 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
                   placeholder="저자 (선택)"
                   style={{ width: "100%", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "8px 10px", fontSize: 12.5, background: "var(--surface)", color: "var(--text-primary)", outline: "none", fontFamily: "var(--sans)" }}
                 />
+                <input
+                  value={editSeries}
+                  onChange={(e) => setEditSeries(e.target.value)}
+                  placeholder="시리즈 (선택)"
+                  style={{ width: "100%", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "8px 10px", fontSize: 12.5, background: "var(--surface)", color: "var(--text-primary)", outline: "none", fontFamily: "var(--sans)" }}
+                />
+
+                <div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 6 }}>
+                    {editTags.map((t) => (
+                      <span
+                        key={t}
+                        style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--terracotta)", background: "var(--surface-soft)", border: "1px solid var(--border)", borderRadius: 20, padding: "3px 8px" }}
+                      >
+                        {t}
+                        <button onClick={() => removeTag(t)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex" }} aria-label={`${t} 제거`}>
+                          <X size={10} color="var(--terracotta)" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                  <input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addTag(tagInput);
+                      }
+                    }}
+                    placeholder="태그 입력 후 Enter (예: 우정)"
+                    style={{ width: "100%", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", padding: "8px 10px", fontSize: 12, background: "var(--surface)", color: "var(--text-primary)", outline: "none", fontFamily: "var(--sans)" }}
+                  />
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+                    {[...SUGGESTED_GENRE_TAGS, ...SUGGESTED_THEME_TAGS]
+                      .filter((t) => !editTags.includes(t))
+                      .slice(0, 8)
+                      .map((t) => (
+                        <button
+                          key={t}
+                          onClick={() => addTag(t)}
+                          className="uaje-tap"
+                          style={{ fontSize: 10.5, color: "var(--text-muted)", background: "none", border: "1px dashed var(--border-strong)", borderRadius: 20, padding: "3px 8px", cursor: "pointer" }}
+                        >
+                          + {t}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+
                 {editError && <div style={{ fontSize: 11, color: "var(--terracotta-deep)" }}>{editError}</div>}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button
@@ -144,7 +221,17 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
                   {book.title}
                 </Serif>
                 <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>{book.author}</div>
-                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.8 }}>
+                {book.series && <div style={{ fontSize: 11, color: "var(--dusty-blue)" }}>{book.series} 시리즈</div>}
+                {book.tags?.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 2 }}>
+                    {book.tags.map((t) => (
+                      <span key={t} style={{ fontSize: 10, color: "var(--terracotta)", background: "var(--surface-soft)", border: "1px solid var(--border)", borderRadius: 20, padding: "2px 8px" }}>
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 6, lineHeight: 1.8 }}>
                   읽은 횟수 {sessions.length}회
                   {sessions.length > 0 && (
                     <>
@@ -272,6 +359,35 @@ export default function DetailScreen({ bookId, onBack, goRecordCreate, goShare }
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {(sameAuthorBooks.length > 0 || sameSeriesBooks.length > 0) && (
+          <div style={{ marginTop: 8 }}>
+            {sameSeriesBooks.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <SectionLabel label={`같은 시리즈 · ${book.series}`} />
+                <div className="uaje-scroll" style={{ display: "flex", gap: 11, overflowX: "auto", paddingBottom: 4 }}>
+                  {sameSeriesBooks.map((b) => (
+                    <button key={b.id} onClick={() => openBook?.(b.id)} className="uaje-tap" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                      <BookCover book={b} width={58} height={80} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {sameAuthorBooks.length > 0 && (
+              <div style={{ marginBottom: 20 }}>
+                <SectionLabel label={`${book.author} 작가의 다른 책`} />
+                <div className="uaje-scroll" style={{ display: "flex", gap: 11, overflowX: "auto", paddingBottom: 4 }}>
+                  {sameAuthorBooks.map((b) => (
+                    <button key={b.id} onClick={() => openBook?.(b.id)} className="uaje-tap" style={{ background: "none", border: "none", padding: 0, cursor: "pointer" }}>
+                      <BookCover book={b} width={58} height={80} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

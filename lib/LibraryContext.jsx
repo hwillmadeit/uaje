@@ -141,9 +141,9 @@ export function LibraryProvider({ children }) {
     return sessions;
   }, []);
 
-  const updateBook = useCallback(async (bookId, { title, author }) => {
-    const { book } = await bookAdapters.updateBook(bookId, { title, author });
-    setBooks((prev) => prev.map((b) => (b.id === bookId ? { ...b, title: book.title, author: book.author } : b)));
+  const updateBook = useCallback(async (bookId, { title, author, series, tags }) => {
+    const { book } = await bookAdapters.updateBook(bookId, { title, author, series, tags });
+    setBooks((prev) => prev.map((b) => (b.id === bookId ? { ...b, title: book.title, author: book.author, series: book.series, tags: book.tags } : b)));
     return book;
   }, []);
 

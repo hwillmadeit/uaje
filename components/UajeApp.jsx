@@ -12,6 +12,7 @@ import RecordTimeline from "@/components/records/RecordTimeline";
 import ShareCard from "@/components/sharing/ShareCard";
 import Archive from "@/components/archive/Archive";
 import AddBookFlow from "@/components/books/AddBookFlow";
+import LoadingSkeleton from "@/components/layout/LoadingSkeleton";
 import { useLibrary } from "@/lib/LibraryContext";
 
 export default function UajeApp() {
@@ -52,11 +53,7 @@ export default function UajeApp() {
 
   let content;
   if (loading) {
-    content = (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: 30 }}>
-        <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>책장을 준비하고 있어요...</div>
-      </div>
-    );
+    content = <LoadingSkeleton />;
   } else if (error) {
     content = (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", padding: 30, textAlign: "center" }}>
@@ -78,7 +75,7 @@ export default function UajeApp() {
   } else if (screen === "settings") {
     content = <SettingsScreen />;
   } else if (screen === "detail") {
-    content = <DetailScreen bookId={selectedBookId} onBack={() => setScreen("shelf")} goRecordCreate={goRecordCreate} goShare={goShare} />;
+    content = <DetailScreen bookId={selectedBookId} openBook={openBook} onBack={() => setScreen("shelf")} goRecordCreate={goRecordCreate} goShare={goShare} />;
   } else if (screen === "recordCreate") {
     content = <RecordComposer bookId={selectedBookId} onBack={() => setScreen("detail")} />;
   } else if (screen === "share") {

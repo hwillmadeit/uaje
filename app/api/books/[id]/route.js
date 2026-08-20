@@ -17,7 +17,7 @@ export async function PATCH(req, { params }) {
     return Response.json({ error: "책 정보를 찾을 수 없어요." }, { status: 400 });
   }
 
-  const { title, author } = await req.json();
+  const { title, author, series, tags } = await req.json();
   if (!title || !title.trim()) {
     return Response.json({ error: "제목은 비워둘 수 없어요." }, { status: 400 });
   }
@@ -25,7 +25,12 @@ export async function PATCH(req, { params }) {
   const supabase = supabaseServer();
   const { data: book, error } = await supabase
     .from("books")
-    .update({ title: title.trim(), author: author?.trim() || null })
+    .update({
+      title: title.trim(),
+      author: author?.trim() || null,
+      series: series?.trim() || null,
+      tags: Array.isArray(tags) ? tags : [],
+    })
     .eq("id", id)
     .select()
     .single();

@@ -11,6 +11,8 @@ create table if not exists books (
   isbn          text,
   cover_image_url text,
   color         text,          -- fallback placeholder color while no real cover exists
+  series        text,          -- optional — powers "같은 시리즈의 다른 책" on the detail screen
+  tags          text[] not null default '{}',  -- genre/theme tags, e.g. {'그림책','우정'}
   created_at    timestamptz not null default now()
 );
 

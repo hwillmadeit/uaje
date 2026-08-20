@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import { Camera, Palette, Check, Pencil, Image as ImageIcon } from "lucide-react";
+import React, { useState, useRef, useMemo } from "react";
+import { Camera, Palette, Check, Pencil, Image as ImageIcon, Repeat } from "lucide-react";
 import { Serif, BackHeader, BookCover } from "@/components/layout/Primitives";
 import { useLibrary } from "@/lib/LibraryContext";
 import { bookAdapters } from "@/lib/bookAdapters";
 import { RECORD_TYPES, RT } from "@/lib/constants";
+import { pickHint } from "@/lib/promptHints";
 import DrawingPad from "@/components/records/DrawingPad";
 
 export default function RecordComposer({ bookId, onBack }) {
@@ -13,6 +14,7 @@ export default function RecordComposer({ bookId, onBack }) {
   const book = books.find((b) => b.id === bookId);
   const sessions = sessionsOf(bookId);
   const latestSessionId = sessions.length ? sessions[sessions.length - 1].id : null;
+  const isReread = sessions.length > 1;
 
   const [type, setType] = useState(null);
   const [text, setText] = useState("");
@@ -24,6 +26,9 @@ export default function RecordComposer({ bookId, onBack }) {
   const [errorMsg, setErrorMsg] = useState("");
   const drawingPadRef = useRef(null);
   const photoInputRef = useRef(null);
+
+  // Picked once when a type is chosen, not re-rolled on every keystroke.
+  const hint = useMemo(() => (type ? pickHint(type, isReread) : null), [type, isReread]);
 
   if (!book) return null;
 
@@ -85,6 +90,11 @@ export default function RecordComposer({ bookId, onBack }) {
             <div style={{ fontSize: 11, color: "var(--text-muted)" }}>이 책에서 무엇이 남았나요?</div>
           </div>
         </div>
+        {isReread && (
+          <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 10, fontSize: 11, color: "var(--dusty-blue)" }}>
+            <Repeat size={11} /> 다시 읽는 중이에요 · 새로운 생각이 생겼나요?
+          </div>
+        )}
       </div>
 
       {!type ? (
@@ -163,6 +173,12 @@ export default function RecordComposer({ bookId, onBack }) {
                   <input ref={photoInputRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handlePhotoSelected(e.target.files?.[0])} />
                 </label>
               ))}
+
+            {hint && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 10, fontSize: 11.5, color: "var(--text-muted)", fontStyle: "italic", lineHeight: 1.5 }}>
+                <span style={{ color: "var(--terracotta)", fontStyle: "normal" }}>💬</span> 이렇게 물어보면 어때요: {hint}
+              </div>
+            )}
 
             <textarea
               value={text}

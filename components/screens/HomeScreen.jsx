@@ -44,6 +44,48 @@ function RecentRecordStrip({ openBook }) {
 export default function HomeScreen({ openBook, onOpenAddFlow }) {
   const { books, weeklyBookIds, weekLabel } = useLibrary();
   const weeklyBooks = weeklyBookIds.map((id) => books.find((b) => b.id === id)).filter(Boolean);
+  const isFirstRun = books.length === 0;
+
+  if (isFirstRun) {
+    return (
+      <div style={{ padding: "26px 22px" }}>
+        <div style={{ background: "var(--surface-soft)", border: "1px solid var(--border)", borderRadius: "var(--radius-section)", padding: "36px 26px", textAlign: "center", boxShadow: "var(--shadow-soft)" }}>
+          <div style={{ fontSize: 26, marginBottom: 12 }}>🌱</div>
+          <Serif as="div" style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)" }}>
+            우아재에 오신 걸 환영해요
+          </Serif>
+          <p style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.7 }}>
+            아이가 읽은 책과 그 안에서 생긴 생각을
+            <br />
+            차곡차곡 모아두는 공간이에요.
+            <br />
+            첫 책을 추가하면서 시작해볼까요?
+          </p>
+          <button
+            onClick={onOpenAddFlow}
+            className="uaje-tap"
+            style={{
+              marginTop: 22,
+              background: "var(--terracotta)",
+              color: "#FBF8F0",
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              padding: "13px 26px",
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              boxShadow: "var(--shadow-soft)",
+            }}
+          >
+            <Plus size={15} /> 첫 책 추가하기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
