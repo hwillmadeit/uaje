@@ -73,24 +73,25 @@ export function BookCover({
 
   if (hasImage && naturalRatio) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <div
         className={className}
-        src={book.cover_image_url || book.coverImageUrl}
-        alt={book.title}
         style={{
           height: "100%",
-          width: "auto",
-          maxWidth: "100%",
-          maxHeight: "100%",
-          objectFit: "contain",
-          display: "block",
           borderRadius: 4,
+          overflow: "hidden",
           boxShadow: "var(--shadow-book)",
           border: "1px solid rgba(0,0,0,0.05)",
           flexShrink: 0,
+          display: "flex",
         }}
-      />
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={book.cover_image_url || book.coverImageUrl}
+          alt={book.title}
+          style={{ height: "100%", width: "auto", display: "block" }}
+        />
+      </div>
     );
   }
 
