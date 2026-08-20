@@ -50,6 +50,11 @@ export function BookCover({
   showInitials = compact,
   titleLines = 3,
   className = "",
+  // "cover" (default) crops a real uploaded photo to fill the frame —
+  // right for narrow shelf-spine contexts. "contain" always shows the
+  // whole photo instead, for contexts (like the weekly widget) that want
+  // to see the entire cover even if it leaves letterbox space.
+  fit = "cover",
 }) {
   const initials = (book.title || "").slice(0, 1);
   const hasImage = Boolean(book.cover_image_url || book.coverImageUrl);
@@ -67,15 +72,15 @@ export function BookCover({
           border: "1px solid rgba(0,0,0,0.05)",
           overflow: "hidden",
           flexShrink: 0,
-          background: "var(--surface-deep)",
+          // Letterbox background for "contain" mode, when the photo's
+          // aspect ratio doesn't fill the frame — uses the book's own
+          // accent color so it still feels intentional. Invisible in
+          // "cover" mode since the image fills the frame either way.
+          background: book.color ? `${book.color}22` : "var(--surface-deep)",
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={book.cover_image_url || book.coverImageUrl}
-          alt={book.title}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-        />
+        <img src={book.cover_image_url || book.coverImageUrl} alt={book.title} style={{ width: "100%", height: "100%", objectFit: fit, display: "block" }} />
       </div>
     );
   }

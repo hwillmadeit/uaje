@@ -35,7 +35,7 @@ function chunk(arr, size) {
   return out;
 }
 
-export function BookItem({ book, openBook, isNew }) {
+export function BookItem({ book, openBook, isNew, fit = "cover" }) {
   const { sessionsOf } = useLibrary();
   const readCount = sessionsOf(book.id).length;
   const rerun = readCount > 1;
@@ -46,7 +46,7 @@ export function BookItem({ book, openBook, isNew }) {
       style={{ background: "none", border: "none", padding: 0, position: "relative", width: "100%", transform: `rotate(${book.rotation ?? 0}deg)` }}
       aria-label={book.title}
     >
-      <BookCover book={book} width="100%" aspectRatio={BOOK_ASPECT} showAuthor={false} compact showInitials={false} titleLines={2} />
+      <BookCover book={book} width="100%" aspectRatio={BOOK_ASPECT} showAuthor={false} compact showInitials={false} titleLines={2} fit={fit} />
       {rerun && (
         <span
           style={{

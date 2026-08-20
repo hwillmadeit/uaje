@@ -94,7 +94,7 @@ export function PhotoWeeklyShelf({ books, openBook, newIds }) {
         >
           {rowBooks[i].map((b) => (
             <div key={b.id} style={{ flex: `0 0 ${row.bookWidthPct}%` }}>
-              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} />
+              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} fit="contain" />
             </div>
           ))}
         </div>
