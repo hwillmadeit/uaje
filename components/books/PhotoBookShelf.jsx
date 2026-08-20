@@ -16,9 +16,9 @@ import { BookItem } from "@/components/books/BookShelf";
 const IMAGE_ASPECT = 1100 / 1430;
 
 const ROWS = [
-  { top: 18.5, height: 24.5, left: 7.7, width: 67.3, bookWidthPct: 18.3, maxBookWidthPct: 30, maxCount: 5 },
-  { top: 46.2, height: 21.3, left: 7.7, width: 86.4, bookWidthPct: 12.4, maxBookWidthPct: 20, maxCount: 6 },
-  { top: 72.7, height: 24.2, left: 7.7, width: 67.3, bookWidthPct: 18.0, maxBookWidthPct: 30, maxCount: 5 },
+  { top: 18.5, height: 24.5, left: 7.7, width: 67.3, bookWidthPct: 18.3, maxCount: 5 },
+  { top: 46.2, height: 21.3, left: 7.7, width: 86.4, bookWidthPct: 12.4, maxCount: 6 },
+  { top: 72.7, height: 24.2, left: 7.7, width: 67.3, bookWidthPct: 18.0, maxCount: 5 },
 ];
 
 export const PHOTO_SHELF_CAPACITY = ROWS.reduce((sum, r) => sum + r.maxCount, 0);
@@ -99,7 +99,7 @@ export function PhotoWeeklyShelf({ books, openBook, newIds }) {
             // it'll just shrink to fit instead (still full-shape, just
             // narrower than its natural ratio would otherwise render).
             <div key={b.id} style={{ height: "100%", maxWidth: `${row.maxBookWidthPct}%`, flexShrink: 0 }}>
-              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} naturalRatio />
+              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} naturalRatio photoShadow />
             </div>
           ))}
         </div>
@@ -156,18 +156,12 @@ export function PhotoBookShelf({ books, openBook, newIds }) {
             display: "flex",
             alignItems: "flex-end",
             justifyContent: "center",
-            paddingLeft: i === 2 ? "10%" : 0,
             gap: "1.8%",
-            overflow: "hidden",
           }}
         >
           {rowBooks[i].map((b) => (
-            // maxWidth is a hard cap so one unusually wide/landscape cover
-            // can't push past the row and spill outside the shelf frame —
-            // it shrinks to fit instead (still its full shape, just
-            // narrower than its natural ratio would otherwise render).
-            <div key={b.id} style={{ height: "100%", maxWidth: `${row.maxBookWidthPct}%`, flexShrink: 0 }}>
-              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} naturalRatio />
+            <div key={b.id} style={{ flex: `0 0 ${row.bookWidthPct}%` }}>
+              <BookItem book={b} openBook={openBook} isNew={newIds.has(b.id)} photoShadow />
             </div>
           ))}
         </div>

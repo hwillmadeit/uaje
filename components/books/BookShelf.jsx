@@ -35,7 +35,7 @@ function chunk(arr, size) {
   return out;
 }
 
-export function BookItem({ book, openBook, isNew, fit = "cover", naturalRatio = false }) {
+export function BookItem({ book, openBook, isNew, fit = "cover", naturalRatio = false, photoShadow = false }) {
   const { sessionsOf } = useLibrary();
   const readCount = sessionsOf(book.id).length;
   const rerun = readCount > 1;
@@ -68,6 +68,7 @@ export function BookItem({ book, openBook, isNew, fit = "cover", naturalRatio = 
         titleLines={2}
         fit={fit}
         naturalRatio={naturalRatio}
+        photoShadow={photoShadow}
       />
       {rerun && (
         <span

@@ -66,10 +66,15 @@ export function BookCover({
   // shape, not stretched into a uniform spine box), and a placeholder
   // uses DEFAULT_BOOK_RATIO. This is what makes books on a shelf line up
   // at the same height with naturally differing widths, like real books.
+  // Uses --shadow-book-photo instead of the default flat --shadow-book —
+  // for books sitting on the wood-grain photo background, where the
+  // subtler default shadow tends to get lost against a busy photo.
   naturalRatio = false,
+  photoShadow = false,
 }) {
   const initials = (book.title || "").slice(0, 1);
   const hasImage = Boolean(book.cover_image_url || book.coverImageUrl);
+  const shadow = photoShadow ? "var(--shadow-book-photo)" : "var(--shadow-book)";
 
   if (hasImage && naturalRatio) {
     return (
@@ -79,7 +84,7 @@ export function BookCover({
           height: "100%",
           borderRadius: 4,
           overflow: "hidden",
-          boxShadow: "var(--shadow-book)",
+          boxShadow: shadow,
           border: "1px solid rgba(0,0,0,0.05)",
           flexShrink: 0,
           display: "flex",
@@ -104,7 +109,7 @@ export function BookCover({
           height: aspectRatio ? undefined : height,
           aspectRatio: aspectRatio || undefined,
           borderRadius: rounded ? "3px 8px 8px 3px" : 4,
-          boxShadow: "var(--shadow-book)",
+          boxShadow: shadow,
           border: "1px solid rgba(0,0,0,0.05)",
           overflow: "hidden",
           flexShrink: 0,
@@ -132,7 +137,7 @@ export function BookCover({
         aspectRatio: naturalRatio ? DEFAULT_BOOK_RATIO : aspectRatio || undefined,
         borderRadius: naturalRatio ? 4 : rounded ? "3px 8px 8px 3px" : 4,
         background: `linear-gradient(150deg, ${color}, ${color}D9)`,
-        boxShadow: "var(--shadow-book)",
+        boxShadow: shadow,
         border: "1px solid rgba(0,0,0,0.05)",
         position: "relative",
         display: "flex",

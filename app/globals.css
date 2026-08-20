@@ -31,6 +31,7 @@
 
   --shadow-soft: 0 4px 16px rgba(80, 60, 40, 0.06);
   --shadow-book: 0 3px 8px rgba(80, 60, 40, 0.16);
+  --shadow-book-photo: 0 5px 11px rgba(35, 22, 10, 0.38), 0 1px 3px rgba(35, 22, 10, 0.28);
   --shadow-book-hover: 0 10px 20px rgba(80, 60, 40, 0.2);
 
   --space-xs: 6px;
